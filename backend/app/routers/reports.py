@@ -73,7 +73,7 @@ def create_report(
     db.add(report)
     db.commit()
 
-    filename = f"snapledger-report-{datetime.utcnow().strftime('%Y%m%d')}.pdf"
+    filename = f"kuachaflo-report-{datetime.utcnow().strftime('%Y%m%d')}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -106,5 +106,5 @@ def download_report(
     return FileResponse(
         report.pdf_path,
         media_type="application/pdf",
-        filename=f"snapledger-report-{report.created_at.strftime('%Y%m%d')}.pdf",
+        filename=f"kuachaflo-report-{report.created_at.strftime('%Y%m%d')}.pdf",
     )

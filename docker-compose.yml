@@ -22,7 +22,7 @@ services:
       # Supabase Postgres connection string (Project Settings → Database →
       # Connection string → URI, "Transaction pooler" mode) — put your DB
       # password directly in your local .env, never paste it in chat.
-      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/snapledger.db}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/kuachaflo.db}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s

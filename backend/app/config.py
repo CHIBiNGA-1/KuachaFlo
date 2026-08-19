@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     # SQLite by default — swap for a real Postgres URL (e.g. Supabase) when you go live
-    database_url: str = "sqlite:///./data/snapledger.db"
+    database_url: str = "sqlite:///./data/kuachaflo.db"
 
     # Local disk by default — swap for Cloudinary/S3 when you go live
     upload_dir: str = "./uploads"

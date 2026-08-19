@@ -163,7 +163,7 @@ function Dashboard({ session, signOut }: { session: Session; signOut: () => void
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `snapledger-report-${new Date().toISOString().split("T")[0]}.pdf`;
+      a.download = `kuachaflo-report-${new Date().toISOString().split("T")[0]}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -189,7 +189,7 @@ function Dashboard({ session, signOut }: { session: Session; signOut: () => void
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `snapledger-${new Date().toISOString().split("T")[0]}.csv`;
+    a.download = `kuachaflo-${new Date().toISOString().split("T")[0]}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

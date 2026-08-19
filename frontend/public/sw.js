@@ -3,7 +3,7 @@
 // support. Never touches API calls (different origin, and data must always
 // be fresh) — only same-origin static assets and the navigation shell.
 
-const CACHE_VERSION = "snapledger-v1";
+const CACHE_VERSION = "kuachaflo-v1";
 const APP_SHELL = ["/", "/manifest.json", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
