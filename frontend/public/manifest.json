@@ -1,6 +1,6 @@
 {
-  "name": "SnapLedger — Expense Capture",
-  "short_name": "SnapLedger",
+  "name": "KuachaFlo — Expense Capture",
+  "short_name": "KuachaFlo",
   "description": "Snap a receipt, get it auto-categorized instantly. Expense tracking without the spreadsheet.",
   "start_url": "/",
   "scope": "/",

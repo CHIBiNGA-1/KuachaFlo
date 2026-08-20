@@ -1,4 +1,4 @@
-// SnapLedger service worker
+// KuachaFlo service worker
 // Strategy: cache the app shell for fast repeat loads + basic offline
 // support. Never touches API calls (different origin, and data must always
 // be fresh) — only same-origin static assets and the navigation shell.

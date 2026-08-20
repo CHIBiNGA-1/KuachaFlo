@@ -251,8 +251,8 @@ function Dashboard({ session, signOut }: { session: Session; signOut: () => void
         {/* ═══ SIDEBAR ═══ */}
         <aside className="sidebar">
           <div className="brand">
-            <div className="logo">SL</div>
-            <div><strong>SnapLedger</strong></div>
+            <div className="logo">KF</div>
+            <div><strong>KuachaFlo</strong></div>
           </div>
           <nav className="nav">
             {navItems.map(n => (

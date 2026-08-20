@@ -11,11 +11,11 @@ export const viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "SnapLedger — Expense capture, without friction",
+  title: "KuachaFlo — Expense capture, without friction",
   description:
     "Snap a receipt, Gemini reads it and auto-categorizes it instantly. Real expense tracking, zero spreadsheets.",
   manifest: "/manifest.json",
-  applicationName: "SnapLedger",
+  applicationName: "KuachaFlo",
   icons: {
     icon: [
       { url: "/favicon.ico" },
@@ -27,10 +27,10 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "SnapLedger",
+    title: "KuachaFlo",
   },
   openGraph: {
-    title: "SnapLedger — Expense capture, without friction",
+    title: "KuachaFlo — Expense capture, without friction",
     description: "Snap a receipt, get it auto-categorized instantly.",
     type: "website",
   },

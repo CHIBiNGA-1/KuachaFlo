@@ -24,8 +24,8 @@ export function AuthGate({ children }: Props) {
   if (session === undefined) {
     return (
       <div className="auth-loading">
-        <div className="logo-mark">SL</div>
-        <span>Loading SnapLedger…</span>
+        <div className="logo-mark">KF</div>
+        <span>Loading KuachaFlo…</span>
       </div>
     );
   }
@@ -102,14 +102,14 @@ function SignInScreen() {
     <div className="auth">
       <div className="auth-story">
         <div className="auth-story-top">
-          <div className="logo-mark">SL</div>
-          <strong>SnapLedger</strong>
+          <div className="logo-mark">KF</div>
+          <strong>KuachaFlo</strong>
         </div>
 
         <div className="auth-story-mid">
           <h1>Expense capture, without friction.</h1>
           <p>
-            Point your camera at a receipt. SnapLedger reads it, categorizes it,
+            Point your camera at a receipt. KuachaFlo reads it, categorizes it,
             and files it — no typing, no spreadsheets, no missed write-offs.
           </p>
           <div className="auth-feature-list">
@@ -129,7 +129,7 @@ function SignInScreen() {
       <div className="auth-panel">
         <div className="auth-card">
           <div className="auth-card-head">
-            <div className="logo-mark">SL</div>
+            <div className="logo-mark">KF</div>
             <h2>{mode === "signin" ? "Welcome back" : "Create your account"}</h2>
             <p>
               {mode === "signin"
