@@ -64,6 +64,9 @@ function Dashboard({ session, signOut }: { session: Session; signOut: () => void
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<View>("overview");
   const [showSettings, setShowSettings] = useState(false);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   const [showCapture, setShowCapture] = useState(false);
   const [theme, setTheme] = useState<Theme>("light");
   const [search, setSearch] = useState("");
@@ -252,6 +255,15 @@ function Dashboard({ session, signOut }: { session: Session; signOut: () => void
 
   return (
     <>
+      <button
+        className="account-fab"
+        onClick={() => setShowAccountMenu(true)}
+        title="Account"
+        aria-label="Account menu"
+      >
+        {avatarLetter}
+      </button>
+
       <div className="app">
         {/* ═══ SIDEBAR ═══ */}
         <aside className="sidebar">
@@ -285,8 +297,8 @@ function Dashboard({ session, signOut }: { session: Session; signOut: () => void
             </a>
             <button
               className="user-chip"
-              onClick={signOut}
-              title="Sign out"
+              onClick={() => setShowAccountMenu(true)}
+              title="Account"
               style={{ background: "none", font: "inherit", color: "inherit", textAlign: "left", cursor: "pointer", width: "100%" }}
             >
               <div className="avatar">{avatarLetter}</div>
@@ -412,7 +424,7 @@ function Dashboard({ session, signOut }: { session: Session; signOut: () => void
                     <div key={c.name} className="breakdown-item">
                       <span className="dot" style={{ background: c.color }} />
                       <div>
-                        <strong>{c.icon} {c.name}</strong>
+                        <strong><span className="emoji-icon">{c.icon}</span> {c.name}</strong>
                         <small>{fmt(c.amount, currency)} · {totalSpend > 0 ? Math.round((c.amount / totalSpend) * 100) : 0}%</small>
                         <div className="bar"><i style={{ width: `${totalSpend > 0 ? Math.round((c.amount / totalSpend) * 100) : 0}%`, background: c.color }} /></div>
                       </div>
@@ -662,7 +674,7 @@ function Dashboard({ session, signOut }: { session: Session; signOut: () => void
                     <div key={c.name} className="breakdown-item">
                       <span className="dot" style={{ background: c.color }} />
                       <div>
-                        <strong>{c.icon} {c.name}</strong>
+                        <strong><span className="emoji-icon">{c.icon}</span> {c.name}</strong>
                         <small>{fmt(c.amount, currency)} · {totalSpend > 0 ? Math.round((c.amount / totalSpend) * 100) : 0}%</small>
                         <div className="bar"><i style={{ width: `${totalSpend > 0 ? Math.round((c.amount / totalSpend) * 100) : 0}%`, background: c.color }} /></div>
                       </div>
@@ -713,6 +725,95 @@ function Dashboard({ session, signOut }: { session: Session; signOut: () => void
             <div className="sheet-actions">
               <small>Saved locally on this device.</small>
               <button className="btn primary" onClick={() => setShowSettings(false)}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ ACCOUNT MENU ══ */}
+      {showAccountMenu && (
+        <div className="overlay show" onClick={e => { if (e.target === e.currentTarget) setShowAccountMenu(false); }}>
+          <div className="sheet account-sheet" style={{ maxWidth: "360px" }}>
+            <div className="sheet-head">
+              <div className="account-sheet-id">
+                <div className="avatar">{avatarLetter}</div>
+                <div><strong>{displayName}</strong><small>{session.user.email}</small></div>
+              </div>
+              <button className="close" onClick={() => setShowAccountMenu(false)}>×</button>
+            </div>
+            <div className="account-menu-list">
+              <button onClick={() => { setShowAccountMenu(false); setShowSettings(true); }}>
+                <span className="icon">⚙</span>Appearance
+              </button>
+              <a href="/billing">
+                <span className="icon">◈</span>Billing & plan
+              </a>
+              <button onClick={() => { setShowAccountMenu(false); setShowHelp(true); }}>
+                <span className="icon">?</span>Help
+              </button>
+              <button onClick={() => { setShowAccountMenu(false); setShowAbout(true); }}>
+                <span className="icon">ⓘ</span>About KuachaFlo
+              </button>
+              <button className="danger" onClick={signOut}>
+                <span className="icon">⏻</span>Sign out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ HELP ══ */}
+      {showHelp && (
+        <div className="overlay show" onClick={e => { if (e.target === e.currentTarget) setShowHelp(false); }}>
+          <div className="sheet" style={{ maxWidth: "420px" }}>
+            <div className="sheet-head">
+              <div>
+                <div className="kicker">Help</div>
+                <h3>Need a hand?</h3>
+              </div>
+              <button className="close" onClick={() => setShowHelp(false)}>×</button>
+            </div>
+            <div className="help-list">
+              <div className="help-item">
+                <strong>Scanning isn't picking up a receipt</strong>
+                <p>Flatten it out and make sure the total and date are clearly visible in frame, then try again.</p>
+              </div>
+              <div className="help-item">
+                <strong>A category looks wrong</strong>
+                <p>Tap the category tag on any receipt to fix it — it won't happen twice for that merchant.</p>
+              </div>
+              <div className="help-item">
+                <strong>Billing or plan questions</strong>
+                <p>Head to Billing & plan from this menu, or reach out at <a href="mailto:hello@kuachaflo.app">hello@kuachaflo.app</a>.</p>
+              </div>
+            </div>
+            <div className="sheet-actions">
+              <small>Still stuck? Email us — we read everything.</small>
+              <button className="btn primary" onClick={() => setShowHelp(false)}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ ABOUT ══ */}
+      {showAbout && (
+        <div className="overlay show" onClick={e => { if (e.target === e.currentTarget) setShowAbout(false); }}>
+          <div className="sheet" style={{ maxWidth: "420px" }}>
+            <div className="sheet-head">
+              <div>
+                <div className="kicker">About</div>
+                <h3>KuachaFlo</h3>
+              </div>
+              <button className="close" onClick={() => setShowAbout(false)}>×</button>
+            </div>
+            <p style={{ fontSize: "13.5px", color: "var(--muted)", lineHeight: 1.6, marginBottom: "16px" }}>
+              KuachaFlo turns a photo of a receipt into structured, categorized spending —
+              no manual entry, no spreadsheets. Built for people and small businesses who'd
+              rather keep their books straight without doing the bookkeeping themselves.
+            </p>
+            <div className="sheet-actions">
+              <small>Made in Zambia.</small>
+              <button className="btn primary" onClick={() => setShowAbout(false)}>Done</button>
             </div>
           </div>
         </div>

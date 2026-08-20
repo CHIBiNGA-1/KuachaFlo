@@ -106,6 +106,35 @@ function SignInScreen() {
           <strong>KuachaFlo</strong>
         </div>
 
+        <div className="auth-hero" aria-hidden="true">
+          <div className="auth-hero-label">
+            <span>Spending rhythm</span>
+            <small>Settles the moment it's scanned</small>
+          </div>
+          <svg viewBox="0 0 320 120" className="auth-hero-chart" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="rhythmFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--ink)" stopOpacity="0.16" />
+                <stop offset="100%" stopColor="var(--ink)" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M0,86 C24,86 30,52 54,52 C78,52 82,94 108,94 C132,94 138,34 164,34 C190,34 196,70 222,70 C248,70 254,44 278,44 C296,44 302,60 320,58 L320,120 L0,120 Z"
+              fill="url(#rhythmFill)"
+            />
+            <path
+              d="M0,86 C24,86 30,52 54,52 C78,52 82,94 108,94 C132,94 138,34 164,34 C190,34 196,70 222,70 C248,70 254,44 278,44 C296,44 302,60 320,58"
+              fill="none"
+              stroke="var(--ink)"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            />
+            {[[54, 52], [164, 34], [278, 44]].map(([cx, cy]) => (
+              <circle key={cx} cx={cx} cy={cy} r="4.5" fill="var(--bg)" stroke="var(--ink)" strokeWidth="2.5" />
+            ))}
+          </svg>
+        </div>
+
         <div className="auth-story-mid">
           <h1>Expense capture, without friction.</h1>
           <p>
@@ -123,14 +152,13 @@ function SignInScreen() {
         </div>
 
         <div className="auth-story-foot">Built for individuals, teams, and everything in between.</div>
-        <div className="auth-float-card" aria-hidden="true" />
       </div>
 
       <div className="auth-panel">
         <div className="auth-card">
           <div className="auth-card-head">
             <div className="logo-mark">KF</div>
-            <h2>{mode === "signin" ? "Welcome back" : "Create your account"}</h2>
+            <h2>{mode === "signin" ? "Good to see you" : "Create your account"}</h2>
             <p>
               {mode === "signin"
                 ? "Sign in to pick up where you left off."

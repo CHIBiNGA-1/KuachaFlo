@@ -49,6 +49,7 @@ def init_db():
                 ("Meals & Food", "meals", "🍔"),
                 ("Supplies", "supplies", "📦"),
                 ("Equipment", "equipment", "🛠️"),
+                ("Accessories", "accessories", "🎒"),
                 ("Software & Subs", "software", "💻"),
                 ("Other", "other", "📎"),
             ]

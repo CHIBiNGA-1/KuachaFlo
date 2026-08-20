@@ -9,8 +9,8 @@ import type { UserProfile, PaymentRequest } from "@/lib/types";
 
 // --- Edit these to match your real numbers/prices ---
 const MOMO_NUMBERS = {
-  airtel: process.env.NEXT_PUBLIC_AIRTEL_MOMO_NUMBER || "0XX XXX XXXX",
-  mtn: process.env.NEXT_PUBLIC_MTN_MOMO_NUMBER || "0XX XXX XXXX",
+  airtel: process.env.NEXT_PUBLIC_AIRTEL_MOMO_NUMBER || "+260 772 157 122",
+  mtn: process.env.NEXT_PUBLIC_MTN_MOMO_NUMBER || "+260 767 813 440",
 };
 
 const PLANS = [

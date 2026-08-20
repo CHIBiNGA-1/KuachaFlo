@@ -125,7 +125,7 @@ function ReceiptRow({ receipt, categories, onUpdated, onDeleted }: {
 
       <div>
         {cat ? (
-          <span className="tag green" style={{ cursor: "pointer" }} onClick={() => setEditing(true)}>{cat.icon} {cat.name}</span>
+          <span className="tag green" style={{ cursor: "pointer" }} onClick={() => setEditing(true)}><span className="emoji-icon">{cat.icon}</span> {cat.name}</span>
         ) : needsReview ? (
           <span className="tag orange" style={{ cursor: "pointer" }} onClick={() => setEditing(true)}>Review</span>
         ) : (
