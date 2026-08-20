@@ -53,6 +53,41 @@ class PlanUpdate(BaseModel):
     plan: str  # free | pro | business
 
 
+class PaymentRequestCreate(BaseModel):
+    plan_requested: str          # pro | business
+    amount: float
+    currency: str = "ZMW"
+    momo_network: str            # airtel | mtn
+    momo_reference: str
+    momo_sender_number: Optional[str] = None
+
+
+class PaymentRequestOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    plan_requested: str
+    amount: float
+    currency: str
+    momo_network: str
+    momo_reference: str
+    status: str
+    created_at: datetime
+
+
+class PaymentRequestAdminOut(PaymentRequestOut):
+    user_id: str
+    user_email: str
+    momo_sender_number: Optional[str] = None
+    reviewed_at: Optional[datetime] = None
+    review_note: Optional[str] = None
+
+
+class PaymentRequestReview(BaseModel):
+    action: str          # confirm | reject
+    review_note: Optional[str] = None
+
+
 class ReportOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

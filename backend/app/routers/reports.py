@@ -1,7 +1,7 @@
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import Response, FileResponse
+from fastapi.responses import Response, FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -9,7 +9,7 @@ from app.deps import get_current_user
 from app.models import User, Receipt, Category, Report
 from app.schemas import ReportOut
 from app.pdf_report import generate_report_pdf
-from app.storage import save_report_pdf
+from app.storage import save_report_pdf, signed_report_url, uses_supabase_storage
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
 
@@ -102,6 +102,12 @@ def download_report(
     report = db.query(Report).filter(Report.id == report_id, Report.user_id == user.id).first()
     if report is None:
         raise HTTPException(404, "Report not found")
+
+    if uses_supabase_storage():
+        # report.pdf_path is a bucket-relative key ("{user_id}/{uuid}.pdf")
+        # in the private reports bucket — exchange it for a short-lived
+        # signed URL rather than serving the file ourselves.
+        return RedirectResponse(signed_report_url(report.pdf_path))
 
     return FileResponse(
         report.pdf_path,

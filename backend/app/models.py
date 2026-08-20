@@ -64,6 +64,33 @@ class Receipt(Base):
     user = relationship("User", back_populates="receipts")
 
 
+class PaymentRequest(Base):
+    """
+    A user's claim to have paid via MoMo, pending manual verification.
+    No payment gateway involved — the operator checks the MoMo app for a
+    matching transaction and approves/rejects from the admin dashboard.
+    """
+    __tablename__ = "payment_requests"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+
+    plan_requested = Column(String, nullable=False)     # pro | business
+    amount = Column(Numeric(12, 2), nullable=False)
+    currency = Column(String, default="ZMW")
+    momo_network = Column(String, nullable=False)        # airtel | mtn
+    momo_reference = Column(String, nullable=False)      # user-entered transaction id
+    momo_sender_number = Column(String, nullable=True)   # number the payment was sent from
+
+    status = Column(String, default="pending")            # pending | confirmed | rejected
+    reviewed_at = Column(DateTime, nullable=True)
+    review_note = Column(String, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User")
+
+
 class Report(Base):
     __tablename__ = "reports"
 

@@ -108,6 +108,13 @@ export function CameraUpload({ onProcessed, onClose }: Props) {
       {state === "error" && (
         <div style={{ marginTop: "16px", padding: "16px", background: "var(--danger)", borderRadius: "14px", fontSize: "11px", color: "#6a1b1b" }}>
           {error}
+          {error?.includes("402") && (
+            <div style={{ marginTop: "8px" }}>
+              <a href="/billing" style={{ color: "#6a1b1b", fontWeight: 700, textDecoration: "underline" }}>
+                Upgrade your plan →
+              </a>
+            </div>
+          )}
         </div>
       )}
 

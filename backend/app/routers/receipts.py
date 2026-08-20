@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import User, Receipt, Category
@@ -21,6 +22,23 @@ def upload_receipt(
 ):
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(400, "File must be an image")
+
+    # Server-side plan enforcement — the dashboard's "X of 100" is cosmetic
+    # only; this is the real gate. Checked before the Gemini call so a
+    # blocked upload doesn't burn an API call.
+    limit = settings.plan_limits.get(user.plan)
+    if limit is not None:
+        current_count = (
+            db.query(Receipt)
+            .filter(Receipt.user_id == user.id, Receipt.is_deleted == False)  # noqa: E712
+            .count()
+        )
+        if current_count >= limit:
+            raise HTTPException(
+                402,
+                f"You've hit the {limit}-receipt limit for the {user.plan} plan. "
+                f"Upgrade to keep scanning.",
+            )
 
     image_bytes = file.file.read()
     if len(image_bytes) > MAX_FILE_SIZE:

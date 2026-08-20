@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db
-from app.routers import receipts, admin, categories, reports
+from app.routers import receipts, admin, categories, reports, billing, users
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -42,6 +42,8 @@ app.include_router(receipts.router)
 app.include_router(admin.router)
 app.include_router(categories.router)
 app.include_router(reports.router)
+app.include_router(billing.router)
+app.include_router(users.router)
 
 # Serves uploaded receipt images at /uploads/{user_id}/{file}.jpg
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")

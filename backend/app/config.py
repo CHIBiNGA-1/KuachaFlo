@@ -30,11 +30,33 @@ class Settings(BaseSettings):
     # this app at all; nothing here reads it).
     supabase_url: str = ""
 
+    # Service-role key — used ONLY server-side, ONLY to upload receipt
+    # images/reports to Supabase Storage (bypasses RLS by design for that
+    # one purpose). Never sent to the frontend, never logged.
+    supabase_service_role_key: str = ""
+
+    # Shared secret for the /admin dashboard and admin API. Anyone with this
+    # key can grant paid plans — treat it like a password.
+    admin_api_key: str = ""
+
+    # Optional: pings your Telegram the moment someone submits a MoMo
+    # payment reference, so you don't have to poll the admin dashboard.
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+
     @property
     def supabase_jwks_url(self) -> str:
         return f"{self.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
 
+    @property
+    def supabase_storage_url(self) -> str:
+        return f"{self.supabase_url.rstrip('/')}/storage/v1"
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    # Free-plan receipt cap, enforced server-side (see routers/receipts.py).
+    # None = unlimited.
+    plan_limits: dict = {"free": 100, "pro": 1000, "business": None}
 
     @property
     def cors_origins(self) -> list[str]:

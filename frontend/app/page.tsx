@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { api } from "@/lib/api";
-import type { ReceiptResult, Category } from "@/lib/types";
+import type { ReceiptResult, Category, UserProfile } from "@/lib/types";
 import { CameraUpload } from "@/components/CameraUpload";
 import { ReceiptList } from "@/components/ReceiptList";
 import { AuthGate } from "@/components/AuthGate";
@@ -60,6 +60,7 @@ export default function Home() {
 function Dashboard({ session, signOut }: { session: Session; signOut: () => void }) {
   const [receipts, setReceipts] = useState<ReceiptResult[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<View>("overview");
   const [showSettings, setShowSettings] = useState(false);
@@ -84,14 +85,18 @@ function Dashboard({ session, signOut }: { session: Session; signOut: () => void
     Promise.all([
       api.get<ReceiptResult[]>("/api/v1/receipts"),
       api.get<Category[]>("/api/v1/categories"),
+      api.get<UserProfile>("/api/v1/me"),
     ])
-      .then(([r, c]) => { setReceipts(r); setCategories(c); })
+      .then(([r, c, p]) => { setReceipts(r); setCategories(c); setProfile(p); })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
 
   // ---- derived ----
   const currency = receipts.find(r => r.currency === "ZMW") ? "K" : (receipts[0]?.currency ?? "K");
+  const PLAN_LIMITS: Record<string, number | null> = { free: 100, pro: 1000, business: null };
+  const planLabel = profile ? profile.plan.charAt(0).toUpperCase() + profile.plan.slice(1) : "Free";
+  const planLimit = PLAN_LIMITS[profile?.plan ?? "free"];
   const totalSpend = receipts.reduce((s, r) => s + (r.total_amount || 0), 0);
   const needsReview = receipts.filter(r => r.status === "needs_review" || r.confidence === "low");
   const categorized = receipts.filter(r => r.category_id);
@@ -265,17 +270,19 @@ function Dashboard({ session, signOut }: { session: Session; signOut: () => void
             </button>
           </nav>
           <div className="sidebar-bottom">
-            <div className="plan-card">
-              <div className="plan-top"><span>Plan</span><span>Free</span></div>
-              <div className="plan-value">{receipts.length} of 100 receipts</div>
+            <a href="/billing" className="plan-card" style={{ display: "block", textDecoration: "none", color: "inherit" }}>
+              <div className="plan-top"><span>Plan</span><span>{planLabel}</span></div>
+              <div className="plan-value">
+                {planLimit === null ? `${receipts.length} receipts` : `${receipts.length} of ${planLimit} receipts`}
+              </div>
               <div className="plan-meter">
-                <i style={{ width: `${Math.min(100, receipts.length)}%` }} />
+                <i style={{ width: `${planLimit === null ? 0 : Math.min(100, (receipts.length / planLimit) * 100)}%` }} />
               </div>
               <div className="plan-foot">
-                <span>{100 - receipts.length} remaining</span>
-                <span>{new Date().toLocaleDateString("en-GB", { month: "long" })}</span>
+                <span>{planLimit === null ? "Unlimited" : `${Math.max(0, planLimit - receipts.length)} remaining`}</span>
+                <span style={{ fontWeight: 800 }}>{profile?.plan === "free" ? "Upgrade →" : "Manage →"}</span>
               </div>
-            </div>
+            </a>
             <button
               className="user-chip"
               onClick={signOut}

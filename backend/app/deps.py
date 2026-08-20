@@ -1,6 +1,7 @@
 from fastapi import Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.models import User
 from app.auth import verify_token, TokenInvalid
@@ -48,3 +49,17 @@ def get_current_user(
         db.refresh(user)
 
     return user
+
+
+def require_admin(x_admin_key: str | None = Header(default=None)) -> None:
+    """
+    Guards every /api/v1/admin/* route. Not full auth (no user accounts,
+    no roles) — just a shared secret only the operator knows, sent as the
+    X-Admin-Key header. Right-sized for a solo-admin app; upgrade to real
+    role-based auth if a second admin ever joins.
+    """
+    if not settings.admin_api_key:
+        # Fail closed: an unset key must never mean "open to everyone".
+        raise HTTPException(503, "Admin API is not configured")
+    if not x_admin_key or x_admin_key != settings.admin_api_key:
+        raise HTTPException(401, "Invalid or missing admin key")
