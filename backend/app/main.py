@@ -8,12 +8,14 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.database import init_db
 from app.routers import receipts, admin, categories, reports, billing, users
+from app.storage import uses_supabase_storage
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # --- startup ---
     init_db()
-    os.makedirs(settings.upload_dir, exist_ok=True)
+    if not uses_supabase_storage():
+        os.makedirs(settings.upload_dir, exist_ok=True)
 
     import logging
     if not settings.gemini_api_key:
@@ -45,8 +47,12 @@ app.include_router(reports.router)
 app.include_router(billing.router)
 app.include_router(users.router)
 
-# Serves uploaded receipt images at /uploads/{user_id}/{file}.jpg
-app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
+# Serves uploaded receipt images at /uploads/{user_id}/{file}.jpg — only
+# relevant in local-dev fallback mode; in production images live in
+# Supabase Storage and are served directly from there.
+if not uses_supabase_storage():
+    os.makedirs(settings.upload_dir, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 
 # Serves the plain-HTML admin dashboard at /admin/
 app.mount("/admin", StaticFiles(directory="static", html=True), name="admin")
