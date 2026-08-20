@@ -169,14 +169,14 @@ export default function BillingPage() {
           <div className="card" style={styles.paymentCard}>
             <h2 style={styles.h2}>Pay for {selectedTier.name} — K{selectedTier.price}/month</h2>
 
-            <div style={styles.momoBoxes}>
-              <div style={styles.momoBox}>
-                <div style={styles.momoLabel}>Airtel Money</div>
-                <div style={styles.momoNumber}>{MOMO_NUMBERS.airtel}</div>
+            <div className="momo-boxes">
+              <div className="momo-box">
+                <div className="momo-label">Airtel Money</div>
+                <div className="momo-number">{MOMO_NUMBERS.airtel}</div>
               </div>
-              <div style={styles.momoBox}>
-                <div style={styles.momoLabel}>MTN MoMo</div>
-                <div style={styles.momoNumber}>{MOMO_NUMBERS.mtn}</div>
+              <div className="momo-box">
+                <div className="momo-label">MTN MoMo</div>
+                <div className="momo-number">{MOMO_NUMBERS.mtn}</div>
               </div>
             </div>
             <p style={styles.instructions}>
@@ -291,10 +291,6 @@ const styles: Record<string, React.CSSProperties> = {
   selectBtn: { marginTop: 16, width: "100%" },
   paymentCard: { padding: 24, marginBottom: 20 },
   h2: { fontSize: 17, letterSpacing: "-.02em", marginBottom: 16 },
-  momoBoxes: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 },
-  momoBox: { background: "var(--surface-2)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 16px" },
-  momoLabel: { fontSize: 11, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em" },
-  momoNumber: { fontSize: 20, fontWeight: 800, marginTop: 4, letterSpacing: "-.01em" },
   instructions: { fontSize: 13, color: "var(--muted)", marginBottom: 20, lineHeight: 1.5 },
   successBox: { background: "#dcefd7", color: "#1e5c2e", padding: "14px 16px", borderRadius: 14, fontSize: 13.5, fontWeight: 600 },
   form: { display: "flex", flexDirection: "column", gap: 14 },

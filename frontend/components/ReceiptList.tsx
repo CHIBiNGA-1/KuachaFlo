@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import type { ReceiptResult, Category } from "@/lib/types";
+import { CategoryIcon } from "@/components/CategoryIcon";
 
 type Props = {
   receipts: ReceiptResult[];
@@ -98,7 +99,7 @@ function ReceiptRow({ receipt, categories, onUpdated, onDeleted }: {
           <input value={date} onChange={e => setDate(e.target.value)} placeholder="YYYY-MM-DD" style={inputStyle} />
           <select value={categoryId} onChange={e => setCategoryId(e.target.value)} style={{ ...inputStyle }}>
             <option value="">No category</option>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
         <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
@@ -125,7 +126,7 @@ function ReceiptRow({ receipt, categories, onUpdated, onDeleted }: {
 
       <div>
         {cat ? (
-          <span className="tag green" style={{ cursor: "pointer" }} onClick={() => setEditing(true)}><span className="emoji-icon">{cat.icon}</span> {cat.name}</span>
+          <span className="tag green" style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "5px" }} onClick={() => setEditing(true)}><CategoryIcon slug={cat.slug} size={12} />{cat.name}</span>
         ) : needsReview ? (
           <span className="tag orange" style={{ cursor: "pointer" }} onClick={() => setEditing(true)}>Review</span>
         ) : (

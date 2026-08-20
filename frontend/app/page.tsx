@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { api } from "@/lib/api";
 import type { ReceiptResult, Category, UserProfile } from "@/lib/types";
+import { CategoryIcon } from "@/components/CategoryIcon";
 import { CameraUpload } from "@/components/CameraUpload";
 import { ReceiptList } from "@/components/ReceiptList";
 import { AuthGate } from "@/components/AuthGate";
@@ -112,12 +113,12 @@ function Dashboard({ session, signOut }: { session: Session; signOut: () => void
 
   const catBreakdown = useMemo(() => {
     const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
-    const totals: Record<string, { name: string; icon: string; amount: number; color: string }> = {};
+    const totals: Record<string, { name: string; slug: string; amount: number; color: string }> = {};
     let idx = 0;
     for (const r of receipts) {
       const cat = r.category_id ? catMap[r.category_id] : null;
       const key = cat?.id ?? "__none__";
-      if (!totals[key]) totals[key] = { name: cat?.name ?? "Uncategorised", icon: cat?.icon ?? "📎", amount: 0, color: CAT_COLORS[idx++ % CAT_COLORS.length] };
+      if (!totals[key]) totals[key] = { name: cat?.name ?? "Uncategorised", slug: cat?.slug ?? "other", amount: 0, color: CAT_COLORS[idx++ % CAT_COLORS.length] };
       totals[key].amount += r.total_amount || 0;
     }
     return Object.values(totals).sort((a, b) => b.amount - a.amount);
@@ -424,7 +425,7 @@ function Dashboard({ session, signOut }: { session: Session; signOut: () => void
                     <div key={c.name} className="breakdown-item">
                       <span className="dot" style={{ background: c.color }} />
                       <div>
-                        <strong><span className="emoji-icon">{c.icon}</span> {c.name}</strong>
+                        <strong><CategoryIcon slug={c.slug} /> {c.name}</strong>
                         <small>{fmt(c.amount, currency)} · {totalSpend > 0 ? Math.round((c.amount / totalSpend) * 100) : 0}%</small>
                         <div className="bar"><i style={{ width: `${totalSpend > 0 ? Math.round((c.amount / totalSpend) * 100) : 0}%`, background: c.color }} /></div>
                       </div>
@@ -674,7 +675,7 @@ function Dashboard({ session, signOut }: { session: Session; signOut: () => void
                     <div key={c.name} className="breakdown-item">
                       <span className="dot" style={{ background: c.color }} />
                       <div>
-                        <strong><span className="emoji-icon">{c.icon}</span> {c.name}</strong>
+                        <strong><CategoryIcon slug={c.slug} /> {c.name}</strong>
                         <small>{fmt(c.amount, currency)} · {totalSpend > 0 ? Math.round((c.amount / totalSpend) * 100) : 0}%</small>
                         <div className="bar"><i style={{ width: `${totalSpend > 0 ? Math.round((c.amount / totalSpend) * 100) : 0}%`, background: c.color }} /></div>
                       </div>
@@ -784,7 +785,7 @@ function Dashboard({ session, signOut }: { session: Session; signOut: () => void
               </div>
               <div className="help-item">
                 <strong>Billing or plan questions</strong>
-                <p>Head to Billing & plan from this menu, or reach out at <a href="mailto:hello@kuachaflo.app">hello@kuachaflo.app</a>.</p>
+                <p>Head to Billing & plan from this menu, or reach out at <a href="mailto:chibingatheace@gmail.com">chibingatheace@gmail.com</a>.</p>
               </div>
             </div>
             <div className="sheet-actions">

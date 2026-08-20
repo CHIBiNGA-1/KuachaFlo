@@ -108,30 +108,26 @@ function SignInScreen() {
 
         <div className="auth-hero" aria-hidden="true">
           <div className="auth-hero-label">
-            <span>Spending rhythm</span>
-            <small>Settles the moment it's scanned</small>
+            <span>Snap a receipt</span>
+            <small>Get it back sorted, seconds later</small>
           </div>
-          <svg viewBox="0 0 320 120" className="auth-hero-chart" preserveAspectRatio="none">
-            <defs>
-              <linearGradient id="rhythmFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--ink)" stopOpacity="0.16" />
-                <stop offset="100%" stopColor="var(--ink)" stopOpacity="0" />
-              </linearGradient>
-            </defs>
+          <svg viewBox="0 0 320 152" className="auth-hero-chart">
+            {/* receipt slip, torn bottom edge */}
             <path
-              d="M0,86 C24,86 30,52 54,52 C78,52 82,94 108,94 C132,94 138,34 164,34 C190,34 196,70 222,70 C248,70 254,44 278,44 C296,44 302,60 320,58 L320,120 L0,120 Z"
-              fill="url(#rhythmFill)"
+              d="M108 18h104a4 4 0 0 1 4 4v78l-6-5-6 5-6-5-6 5-6-5-6 5-6-5-6 5-6-5-6 5-6-5-6 5-6-5-6 5-6-5V22a4 4 0 0 1 4-4Z"
+              fill="#fff" stroke="var(--ink)" strokeWidth="2" strokeLinejoin="round"
             />
-            <path
-              d="M0,86 C24,86 30,52 54,52 C78,52 82,94 108,94 C132,94 138,34 164,34 C190,34 196,70 222,70 C248,70 254,44 278,44 C296,44 302,60 320,58"
-              fill="none"
-              stroke="var(--ink)"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            />
-            {[[54, 52], [164, 34], [278, 44]].map(([cx, cy]) => (
-              <circle key={cx} cx={cx} cy={cy} r="4.5" fill="var(--bg)" stroke="var(--ink)" strokeWidth="2.5" />
-            ))}
+            {/* receipt lines */}
+            <path d="M120 34h56" stroke="var(--ink)" strokeWidth="2.2" strokeLinecap="round" opacity=".85" />
+            <path d="M120 46h80" stroke="var(--ink)" strokeWidth="1.6" strokeLinecap="round" opacity=".3" />
+            <path d="M120 56h64" stroke="var(--ink)" strokeWidth="1.6" strokeLinecap="round" opacity=".3" />
+            <path d="M120 66h72" stroke="var(--ink)" strokeWidth="1.6" strokeLinecap="round" opacity=".3" />
+            <path d="M120 80h80" stroke="var(--ink)" strokeWidth="1.6" strokeLinecap="round" opacity=".2" />
+            {/* scan line sweeping across */}
+            <line x1="104" y1="60" x2="220" y2="60" stroke="var(--ink)" strokeWidth="1.4" strokeDasharray="1 5" strokeLinecap="round" opacity=".55" />
+            {/* processed / categorized badge */}
+            <circle cx="222" cy="98" r="20" fill="var(--ink)" />
+            <path d="M213 98l6 6 11-13" stroke="#fff" strokeWidth="2.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
 
