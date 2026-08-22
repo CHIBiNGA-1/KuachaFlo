@@ -11,6 +11,7 @@ class UserOut(BaseModel):
     plan: str
     currency: str
     created_at: datetime
+    whatsapp_number: Optional[str] = None
 
 
 class ReceiptOut(BaseModel):
@@ -86,6 +87,13 @@ class PaymentRequestAdminOut(PaymentRequestOut):
 class PaymentRequestReview(BaseModel):
     action: str          # confirm | reject
     review_note: Optional[str] = None
+
+
+class WhatsAppLinkCodeOut(BaseModel):
+    code: str
+    expires_in_minutes: int
+    whatsapp_number: str
+    already_linked: bool
 
 
 class ReportOut(BaseModel):

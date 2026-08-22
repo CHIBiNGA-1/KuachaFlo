@@ -44,6 +44,16 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
 
+    # WhatsApp Cloud API — lets users text a receipt photo straight to a
+    # WhatsApp number instead of opening the app. All four come from a
+    # Meta for Developers app (WhatsApp product): verify_token is one you
+    # choose yourself, the rest come from the app dashboard.
+    whatsapp_verify_token: str = ""
+    whatsapp_access_token: str = ""
+    whatsapp_phone_number_id: str = ""
+    whatsapp_app_secret: str = ""
+    whatsapp_display_number: str = ""  # human-readable, shown in-app for linking instructions
+
     @property
     def supabase_jwks_url(self) -> str:
         return f"{self.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"

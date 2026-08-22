@@ -24,6 +24,13 @@ export type PaymentRequest = {
   created_at: string;
 };
 
+export type WhatsAppLinkCode = {
+  code: string;
+  expires_in_minutes: number;
+  whatsapp_number: string;
+  already_linked: boolean;
+};
+
 export type ReceiptResult = {
   id: string;
   merchant: string | null;

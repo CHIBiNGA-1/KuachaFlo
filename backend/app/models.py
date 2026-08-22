@@ -24,6 +24,13 @@ class User(Base):
     plan = Column(String, default="free")  # free | pro | business
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # WhatsApp receipt capture — links a WhatsApp number to this account.
+    # whatsapp_number is the source of truth once linked; the link_code
+    # fields are only populated transiently during the linking flow.
+    whatsapp_number = Column(String, unique=True, nullable=True, index=True)
+    whatsapp_link_code = Column(String, nullable=True)
+    whatsapp_link_code_expires = Column(DateTime, nullable=True)
+
     receipts = relationship("Receipt", back_populates="user", cascade="all, delete-orphan")
 
 

@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { api } from "@/lib/api";
-import type { ReceiptResult, Category, UserProfile } from "@/lib/types";
+import type { ReceiptResult, Category, UserProfile, WhatsAppLinkCode } from "@/lib/types";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { CameraUpload } from "@/components/CameraUpload";
 import { ReceiptList } from "@/components/ReceiptList";
@@ -68,6 +68,9 @@ function Dashboard({ session, signOut }: { session: Session; signOut: () => void
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [showWhatsApp, setShowWhatsApp] = useState(false);
+  const [linkCode, setLinkCode] = useState<WhatsAppLinkCode | null>(null);
+  const [linkCodeLoading, setLinkCodeLoading] = useState(false);
   const [showCapture, setShowCapture] = useState(false);
   const [theme, setTheme] = useState<Theme>("light");
   const [search, setSearch] = useState("");
@@ -164,6 +167,28 @@ function Dashboard({ session, signOut }: { session: Session; signOut: () => void
 
   // ---- actions ----
   const [generatingPdf, setGeneratingPdf] = useState(false);
+
+  async function openWhatsAppSheet() {
+    setShowWhatsApp(true);
+    setLinkCodeLoading(true);
+    try {
+      const code = await api.post<WhatsAppLinkCode>("/api/v1/account/whatsapp/link-code");
+      setLinkCode(code);
+    } catch {
+      setLinkCode(null);
+    } finally {
+      setLinkCodeLoading(false);
+    }
+  }
+
+  async function unlinkWhatsApp() {
+    try {
+      await api.delete("/api/v1/account/whatsapp/link");
+      await openWhatsAppSheet();
+    } catch {
+      // sheet just stays as-is; user can retry
+    }
+  }
 
   async function handleExportPDF() {
     setGeneratingPdf(true);
@@ -749,6 +774,9 @@ function Dashboard({ session, signOut }: { session: Session; signOut: () => void
               <a href="/billing">
                 <span className="icon">◈</span>Billing & plan
               </a>
+              <button onClick={() => { setShowAccountMenu(false); openWhatsAppSheet(); }}>
+                <span className="icon">☏</span>Connect WhatsApp
+              </button>
               <button onClick={() => { setShowAccountMenu(false); setShowHelp(true); }}>
                 <span className="icon">?</span>Help
               </button>
@@ -791,6 +819,53 @@ function Dashboard({ session, signOut }: { session: Session; signOut: () => void
             <div className="sheet-actions">
               <small>Still stuck? Email us — we read everything.</small>
               <button className="btn primary" onClick={() => setShowHelp(false)}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ CONNECT WHATSAPP ══ */}
+      {showWhatsApp && (
+        <div className="overlay show" onClick={e => { if (e.target === e.currentTarget) setShowWhatsApp(false); }}>
+          <div className="sheet" style={{ maxWidth: "420px" }}>
+            <div className="sheet-head">
+              <div>
+                <div className="kicker">Beta</div>
+                <h3>Scan receipts over WhatsApp</h3>
+              </div>
+              <button className="close" onClick={() => setShowWhatsApp(false)}>×</button>
+            </div>
+
+            {linkCodeLoading ? (
+              <p style={{ fontSize: "13px", color: "var(--muted)" }}>Loading…</p>
+            ) : !linkCode ? (
+              <p style={{ fontSize: "13px", color: "var(--muted)" }}>Couldn't reach the server — try again in a moment.</p>
+            ) : linkCode.already_linked ? (
+              <>
+                <p style={{ fontSize: "13.5px", color: "var(--muted)", lineHeight: 1.6, marginBottom: "16px" }}>
+                  This account is linked to WhatsApp. Send a photo of any receipt to{" "}
+                  <strong style={{ color: "var(--ink)" }}>{linkCode.whatsapp_number}</strong> and it'll show up here automatically.
+                </p>
+                <button className="btn" style={{ width: "100%" }} onClick={unlinkWhatsApp}>Unlink this number</button>
+              </>
+            ) : (
+              <>
+                <p style={{ fontSize: "13.5px", color: "var(--muted)", lineHeight: 1.6, marginBottom: "14px" }}>
+                  Save this number, then send your code as a message to link your account:
+                </p>
+                <div style={{ background: "var(--surface-2)", border: "1px solid var(--line)", borderRadius: 14, padding: "16px", marginBottom: "14px" }}>
+                  <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 4 }}>WhatsApp number</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 14 }}>{linkCode.whatsapp_number}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 4 }}>Your code</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: "0.1em" }}>{linkCode.code}</div>
+                </div>
+                <p style={{ fontSize: 11.5, color: "var(--muted)" }}>Expires in {linkCode.expires_in_minutes} minutes.</p>
+              </>
+            )}
+
+            <div className="sheet-actions">
+              <small>Optional — the app works fine without it.</small>
+              <button className="btn primary" onClick={() => setShowWhatsApp(false)}>Done</button>
             </div>
           </div>
         </div>
