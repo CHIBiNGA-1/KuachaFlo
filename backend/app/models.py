@@ -68,7 +68,28 @@ class Receipt(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Where this entry came from — lets the UI show "via WhatsApp" etc.,
+    # and matters functionally too: whatsapp_momo_sms entries have no
+    # image at all (they're built from forwarded SMS text, not a photo).
+    source = Column(String, default="app")  # app | whatsapp_photo | whatsapp_momo_sms
+
     user = relationship("User", back_populates="receipts")
+
+
+class WhatsAppProcessedMessage(Base):
+    """
+    Dedup guard for the webhook. Meta retries a webhook delivery if it
+    doesn't get a fast 200 back — without this, a slow Gemini call means
+    the same WhatsApp message gets processed 2-3x and the same receipt
+    gets logged multiple times. message_id is the primary key on purpose:
+    the very first thing the webhook does is try to insert it, before any
+    Gemini/DB work happens, so even overlapping retries get blocked
+    immediately rather than racing each other.
+    """
+    __tablename__ = "whatsapp_processed_messages"
+
+    message_id = Column(String, primary_key=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class PaymentRequest(Base):

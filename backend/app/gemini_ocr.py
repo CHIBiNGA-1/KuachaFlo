@@ -167,3 +167,106 @@ def _needs_review(reason: str) -> dict:
         "status": "needs_review",
         "category_name": None,
     }
+
+
+MOMO_EXTRACTION_PROMPT = (
+    "You will be shown a WhatsApp message someone forwarded. Decide: is this "
+    "an actual mobile money or bank transaction alert (e.g. Airtel Money, "
+    "MTN MoMo, Zamtel Kwacha, or a bank SMS confirming a payment, transfer, "
+    "withdrawal, or deposit)? People forward all sorts of things, so most "
+    "messages will NOT be this.\n\n"
+    "If it genuinely is a transaction alert, set isTransaction to true and extract:\n"
+    "- counterparty: who the money went to or came from (business or person name)\n"
+    "- amount: the transaction amount (a number, no currency symbol/commas)\n"
+    "- direction: one of sent, received, payment, withdrawal, deposit, airtime, unknown\n"
+    "- currency: 3-letter code (ZMW, USD, etc.) if determinable, else ZMW\n"
+    "- category: best-fit category for this spend, from the allowed list — only "
+    "for direction=sent/payment/withdrawal/airtime; omit for received/deposit\n"
+    "- reference: the transaction reference/ID if one is present\n\n"
+    "If this is NOT a transaction alert (it's chat, a question, a joke, an "
+    "unrelated forward, etc.), set isTransaction to false and leave every "
+    "other field out. Never guess numbers or names that aren't in the text."
+)
+
+
+def _build_momo_schema(category_names: list[str]) -> dict:
+    return {
+        "type": "OBJECT",
+        "properties": {
+            "isTransaction": {"type": "BOOLEAN"},
+            "counterparty": {"type": "STRING"},
+            "amount": {"type": "NUMBER"},
+            "direction": {
+                "type": "STRING",
+                "enum": ["sent", "received", "payment", "withdrawal", "deposit", "airtime", "unknown"],
+            },
+            "currency": {"type": "STRING"},
+            "category": {"type": "STRING", "enum": category_names},
+            "reference": {"type": "STRING"},
+        },
+        "required": ["isTransaction"],
+    }
+
+
+def extract_transaction_from_text(text: str, category_names: list[str]) -> dict | None:
+    """
+    Classifies + extracts a forwarded WhatsApp text as a mobile money/bank
+    transaction, or returns None if it isn't one (so the caller can fall
+    back to a normal chat reply instead of forcing every text into a
+    ledger entry). Raises GeminiNotConfigured under the same condition as
+    extract_receipt_data — this is a genuine setup problem, not a "this
+    text isn't a transaction" case.
+    """
+    if not settings.gemini_api_key:
+        raise GeminiNotConfigured("GEMINI_API_KEY is not set.")
+
+    payload = {
+        "contents": [{"parts": [{"text": f"{MOMO_EXTRACTION_PROMPT}\n\nMessage:\n{text}"}]}],
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "responseSchema": _build_momo_schema(category_names),
+        },
+    }
+
+    url = GEMINI_ENDPOINT.format(model=settings.gemini_model)
+
+    try:
+        response = httpx.post(
+            url,
+            headers={"x-goog-api-key": settings.gemini_api_key, "Content-Type": "application/json"},
+            json=payload,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+    except (httpx.HTTPStatusError, httpx.RequestError) as e:
+        logging.error(f"Gemini MoMo-text extraction failed: {e}")
+        return None  # treat "Gemini unreachable" as "not a transaction" here — a
+        # WhatsApp reply saying "OCR is down" for a message that was never
+        # meant to be a receipt in the first place would be confusing, not helpful
+
+    try:
+        text_out = response.json()["candidates"][0]["content"]["parts"][0]["text"]
+        parsed = json.loads(text_out)
+    except (KeyError, IndexError, json.JSONDecodeError) as e:
+        logging.error(f"Could not parse Gemini MoMo-text response: {e}")
+        return None
+
+    if not parsed.get("isTransaction") or not parsed.get("amount"):
+        return None
+
+    direction = parsed.get("direction", "unknown")
+    is_spend = direction in ("sent", "payment", "withdrawal", "airtime")
+
+    return {
+        "merchant": parsed.get("counterparty") or direction.capitalize(),
+        "total_amount": parsed["amount"],
+        "tax_amount": None,
+        "purchase_date": datetime.utcnow().date(),  # SMS text rarely has a
+        # reliable full date in it — logging "today" beats guessing wrong
+        "currency": parsed.get("currency") or "ZMW",
+        "raw_ocr_text": json.dumps(parsed),
+        "confidence": "medium",
+        "status": "processed",
+        "category_name": parsed.get("category") if is_spend else None,
+        "direction": direction,
+    }

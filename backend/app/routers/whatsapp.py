@@ -4,14 +4,18 @@ import string
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import User
+from app.models import User, WhatsAppProcessedMessage
 from app.schemas import WhatsAppLinkCodeOut
-from app.receipt_service import process_receipt_image, ReceiptLimitReached, ReceiptTooLarge, ReceiptUnreadable, ReceiptOcrUnavailable
+from app.receipt_service import (
+    process_receipt_image, process_momo_text,
+    ReceiptLimitReached, ReceiptTooLarge, ReceiptUnreadable, ReceiptOcrUnavailable,
+)
 from app.whatsapp import verify_signature, send_text, download_media
 
 router = APIRouter(tags=["whatsapp"])
@@ -78,9 +82,23 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
 
         message = messages[0]
         sender = message["from"]  # WhatsApp number, no '+', e.g. "260772157122"
+        message_id = message.get("id")
     except (KeyError, IndexError):
         logging.warning("Unrecognised WhatsApp webhook payload shape")
         return {"status": "ignored"}
+
+    # Meta retries a webhook delivery if it doesn't get a fast 200 — a slow
+    # Gemini call is enough to trigger a retry, which would otherwise log
+    # the same receipt 2-3 times. Claim the message_id BEFORE any
+    # processing starts, so even an overlapping retry gets blocked
+    # immediately rather than racing the first attempt.
+    if message_id:
+        db.add(WhatsAppProcessedMessage(message_id=message_id))
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            return {"status": "duplicate"}
 
     _handle_message(db, sender, message)
     return {"status": "ok"}
@@ -96,9 +114,34 @@ def _handle_message(db: Session, sender: str, message: dict) -> None:
         if text.isdigit() and len(text) == 6:
             _try_link(db, sender, text)
             return
+
+        # --- forwarded MoMo/bank SMS: try to recognise it as a transaction
+        # before falling back to a generic reply. Most texts won't be one
+        # (chit-chat, questions) — that's expected, not an error.
+        if user is not None:
+            try:
+                result = process_momo_text(db, user, text)
+            except ReceiptLimitReached as e:
+                send_text(
+                    sender,
+                    f"That looks like a MoMo transaction, but you're at the "
+                    f"{e.limit}-receipt limit on the {e.plan} plan. Upgrade in the app to keep logging.",
+                )
+                return
+            except ReceiptOcrUnavailable:
+                result = None  # stay quiet rather than error on a message that might not even be a transaction
+
+            if result is not None:
+                r = result.receipt
+                amount = f"{r.currency or ''} {r.total_amount:,.2f}".strip() if r.total_amount else "amount unclear"
+                cat = result.matched_category_name or "uncategorised"
+                who = r.merchant or "transaction"
+                send_text(sender, f"✅ Logged: {who} — {amount} ({cat})\nView it anytime in KuachaFlo.")
+                return
+
         send_text(
             sender,
-            "👋 Send a photo of a receipt and I'll log it in KuachaFlo."
+            "👋 Send a photo of a receipt, or forward a MoMo/bank transaction alert, and I'll log it in KuachaFlo."
             if user else
             "👋 To link this number, open KuachaFlo → Account → WhatsApp, "
             "grab your 6-digit code, and send it here.",
@@ -121,7 +164,7 @@ def _handle_message(db: Session, sender: str, message: dict) -> None:
             return
 
         try:
-            result = process_receipt_image(db, user, image_bytes)
+            result = process_receipt_image(db, user, image_bytes, source="whatsapp_photo")
         except ReceiptLimitReached as e:
             send_text(
                 sender,
