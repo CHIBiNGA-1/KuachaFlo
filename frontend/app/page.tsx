@@ -181,6 +181,16 @@ function Dashboard({ session, signOut }: { session: Session; signOut: () => void
     }
   }
 
+  async function openKratte() {
+    setShowAccountMenu(false);
+    try {
+      const res = await api.post<{ url: string }>("/api/v1/kratte/sso-url");
+      window.location.href = res.url;
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Couldn't open KraTte right now.");
+    }
+  }
+
   async function unlinkWhatsApp() {
     try {
       await api.delete("/api/v1/account/whatsapp/link");
@@ -776,6 +786,9 @@ function Dashboard({ session, signOut }: { session: Session; signOut: () => void
               </a>
               <button onClick={() => { setShowAccountMenu(false); openWhatsAppSheet(); }}>
                 <span className="icon">☏</span>Connect WhatsApp
+              </button>
+              <button onClick={openKratte}>
+                <span className="icon">🏪</span>Open My Shop (KraTte)
               </button>
               <button onClick={() => { setShowAccountMenu(false); setShowHelp(true); }}>
                 <span className="icon">?</span>Help

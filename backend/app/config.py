@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     # reimplementing it here.
     kratte_api_url: str = "https://kratte.onrender.com"
     kratte_internal_api_key: str = ""
+    kratte_sso_secret: str = ""
 
     @property
     def supabase_jwks_url(self) -> str:

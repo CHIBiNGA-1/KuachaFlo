@@ -1,4 +1,9 @@
+import base64
+import hashlib
+import hmac
+import json
 import logging
+import time
 
 import httpx
 
@@ -9,6 +14,20 @@ class KratteImportFailed(Exception):
     def __init__(self, message: str):
         self.message = message
         super().__init__(message)
+
+
+def build_sso_url(email: str, name: str | None) -> str:
+    """
+    Signs a short-lived handoff token so a KuachaFlo user can land inside
+    KraTte already logged in — one identity (matched by email) instead of
+    a second password. Verified on KraTte's side against the same shared
+    secret; see kratte/src/app/api/sso/kuachaflo/route.ts.
+    """
+    payload = {"email": email, "name": name, "exp": int(time.time()) + 120}
+    payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
+    signature = hmac.new(settings.kratte_sso_secret.encode(), payload_b64.encode(), hashlib.sha256).hexdigest()
+    token = f"{payload_b64}.{signature}"
+    return f"{settings.kratte_api_url}/api/sso/kuachaflo?token={token}"
 
 
 def import_sales_sheet(whatsapp_number: str, items: list[dict]) -> dict:
