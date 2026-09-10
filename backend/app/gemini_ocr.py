@@ -270,3 +270,97 @@ def extract_transaction_from_text(text: str, category_names: list[str]) -> dict 
         "category_name": parsed.get("category") if is_spend else None,
         "direction": direction,
     }
+
+
+# Fixed category list for KraTte's inventory (see kratte/src/lib/types.ts) —
+# Gemini's guess must be one of these exactly, or product auto-creation
+# there would reject it.
+KRATTE_CATEGORIES = [
+    "Beverages", "Pantry", "Fresh & dairy", "Snacks",
+    "Personal care", "Household", "Other",
+]
+
+SALES_SHEET_PROMPT = (
+    "You are looking at a photo of a shop's sales record for the day — a "
+    "handwritten tally sheet, a till receipt roll, or a notebook page "
+    "listing what was sold. Extract every distinct line item you can "
+    "read as an entry with:\n"
+    "- name: the product name, as written (don't invent a fuller/different name)\n"
+    "- quantity: how many units were sold (a whole number; if not stated, use 1)\n"
+    "- unitPrice: the price per unit sold, as a number with no currency symbol\n"
+    "- categoryGuess: your best-fit category for this product, from the allowed list\n\n"
+    "Skip anything you can't confidently read rather than guessing. If the "
+    "photo isn't a sales/tally sheet at all, return an empty items list."
+)
+
+
+def _build_sales_sheet_schema() -> dict:
+    return {
+        "type": "OBJECT",
+        "properties": {
+            "items": {
+                "type": "ARRAY",
+                "items": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "name": {"type": "STRING"},
+                        "quantity": {"type": "NUMBER"},
+                        "unitPrice": {"type": "NUMBER"},
+                        "categoryGuess": {"type": "STRING", "enum": KRATTE_CATEGORIES},
+                    },
+                    "required": ["name", "quantity", "unitPrice"],
+                },
+            },
+        },
+        "required": ["items"],
+    }
+
+
+def extract_sales_sheet(image_bytes: bytes) -> list[dict]:
+    """
+    Reads a photo of a day's sales sheet/till tally and returns a list of
+    {name, quantity, unitPrice, categoryGuess} line items — the shape
+    KraTte's /api/internal/whatsapp-import endpoint expects directly.
+    Returns an empty list on any failure (unreadable photo, Gemini down,
+    not actually a sales sheet) rather than raising — callers should
+    treat an empty list as "couldn't find anything to log", not a crash.
+    """
+    if not settings.gemini_api_key:
+        raise GeminiNotConfigured("GEMINI_API_KEY is not set.")
+
+    payload = {
+        "contents": [{
+            "parts": [
+                {"text": SALES_SHEET_PROMPT},
+                {"inlineData": {"mimeType": "image/jpeg", "data": base64.b64encode(image_bytes).decode("utf-8")}},
+            ]
+        }],
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "responseSchema": _build_sales_sheet_schema(),
+        },
+    }
+
+    url = GEMINI_ENDPOINT.format(model=settings.gemini_model)
+
+    try:
+        response = httpx.post(
+            url,
+            headers={"x-goog-api-key": settings.gemini_api_key, "Content-Type": "application/json"},
+            json=payload,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+    except (httpx.HTTPStatusError, httpx.RequestError) as e:
+        logging.error(f"Gemini sales-sheet extraction failed: {e}")
+        return []
+
+    try:
+        text_out = response.json()["candidates"][0]["content"]["parts"][0]["text"]
+        parsed = json.loads(text_out)
+    except (KeyError, IndexError, json.JSONDecodeError) as e:
+        logging.error(f"Could not parse Gemini sales-sheet response: {e}")
+        return []
+
+    items = parsed.get("items") or []
+    return [item for item in items if item.get("name") and item.get("unitPrice") is not None]

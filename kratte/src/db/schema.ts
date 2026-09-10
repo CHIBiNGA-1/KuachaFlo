@@ -36,6 +36,12 @@ export const users = pgTable(
         plan: "Starter",
       }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
+    // WhatsApp sales-photo capture linking — populated once the account
+    // links a number via Settings; link_code fields are transient,
+    // cleared once linking succeeds.
+    whatsappNumber: text("whatsapp_number").unique(),
+    whatsappLinkCode: text("whatsapp_link_code"),
+    whatsappLinkCodeExpires: timestamp("whatsapp_link_code_expires"),
   },
   (table) => [
     uniqueIndex("shop_users_email_normalized_idx").on(

@@ -42,7 +42,7 @@ export function Logo({ small = false }: { small?: boolean }) {
       </svg>
       {!small && (
         <span>
-          shopwise<span className="brand-dot">.</span>
+          kratte<span className="brand-dot">.</span>
         </span>
       )}
     </div>

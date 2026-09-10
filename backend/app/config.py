@@ -54,6 +54,14 @@ class Settings(BaseSettings):
     whatsapp_app_secret: str = ""
     whatsapp_display_number: str = ""  # human-readable, shown in-app for linking instructions
 
+    # KraTte integration — lets the same WhatsApp number serve both apps.
+    # A number linked to a KraTte account gets sales-sheet photo capture
+    # instead of receipt capture; this is how this backend calls into
+    # KraTte's own business logic (mutateRecord etc.) rather than
+    # reimplementing it here.
+    kratte_api_url: str = "https://kratte.onrender.com"
+    kratte_internal_api_key: str = ""
+
     @property
     def supabase_jwks_url(self) -> str:
         return f"{self.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"

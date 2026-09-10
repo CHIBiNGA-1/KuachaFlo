@@ -1,5 +1,5 @@
 "use client";
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import Link from "next/link";
 import {
   CheckCircle2,
@@ -14,6 +14,7 @@ import {
   Sparkles,
   Globe,
   Building2,
+  MessageCircle,
 } from "lucide-react";
 import { api, useShop } from "@/components/shop-provider";
 import { Avatar, PageHeading, Spinner } from "@/components/ui";
@@ -23,6 +24,39 @@ export function Settings({ onPlans }: { onPlans: () => void }) {
   const [tab, setTab] = useState("General");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [whatsapp, setWhatsapp] = useState<{
+    code: string;
+    expiresInMinutes: number;
+    alreadyLinked: boolean;
+    whatsappNumber: string | null;
+  } | null>(null);
+  const [whatsappLoading, setWhatsappLoading] = useState(false);
+  useEffect(() => {
+    if (tab !== "WhatsApp" || whatsapp) return;
+    setWhatsappLoading(true);
+    api<typeof whatsapp>("/api/whatsapp/link-code", { method: "POST" })
+      .then(setWhatsapp)
+      .catch((e) =>
+        notify(
+          e instanceof Error ? e.message : "Couldn't reach WhatsApp linking.",
+          "error",
+        ),
+      )
+      .finally(() => setWhatsappLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+  const unlinkWhatsapp = async () => {
+    setBusy(true);
+    try {
+      await api("/api/whatsapp/link-code", { method: "DELETE" });
+      setWhatsapp(null);
+      notify("WhatsApp number unlinked.");
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "Unable to unlink.", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
   if (!data) return null;
   const user = data.user;
   const saveGeneral = async (e: FormEvent<HTMLFormElement>) => {
@@ -72,6 +106,7 @@ export function Settings({ onPlans }: { onPlans: () => void }) {
         {[
           { name: "General", icon: Store },
           { name: "Notifications", icon: Bell },
+          { name: "WhatsApp", icon: MessageCircle },
           { name: "Security", icon: ShieldCheck },
           { name: "Billing & plan", icon: CreditCard },
         ].map((item) => (
@@ -268,6 +303,53 @@ export function Settings({ onPlans }: { onPlans: () => void }) {
           <p className="settings-bottom-note">
             Notifications appear in-app. No marketing emails, no noise.
           </p>
+        </section>
+      )}
+      {tab === "WhatsApp" && (
+        <section className="card settings-card narrow-settings">
+          <div className="settings-card-heading">
+            <MessageCircle size={21} />
+            <div>
+              <h2>Record sales by photo, over WhatsApp</h2>
+              <p>
+                Send a photo of your day's sales sheet or till tally and
+                KraTte logs each item as a sale — matching your existing
+                products automatically, and adding new ones it hasn't seen
+                before.
+              </p>
+            </div>
+          </div>
+          {whatsappLoading || !whatsapp ? (
+            <Spinner />
+          ) : whatsapp.alreadyLinked ? (
+            <>
+              <p className="settings-note">
+                This workspace is linked to{" "}
+                <strong>{whatsapp.whatsappNumber}</strong>. Send a sales
+                photo to that number any time.
+              </p>
+              <div className="modal-footer">
+                <button
+                  className="button"
+                  disabled={busy}
+                  onClick={unlinkWhatsapp}
+                >
+                  {busy ? <Spinner /> : null}Unlink this number
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="settings-note">
+                Save the KuachaFlo/KraTte WhatsApp number, then send this
+                code as a message to link your workspace:
+              </p>
+              <div className="whatsapp-code-box">
+                <span className="whatsapp-code">{whatsapp.code}</span>
+                <small>Expires in {whatsapp.expiresInMinutes} minutes</small>
+              </div>
+            </>
+          )}
         </section>
       )}
       {tab === "Security" && (

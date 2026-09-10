@@ -203,7 +203,7 @@ export async function POST(request: Request) {
     const jar = await cookies();
     if (
       !guest &&
-      (jar.has("shopwise_session_v2") || jar.has("shopwise_session"))
+      (jar.has("kratte_session_v2") || jar.has("shopwise_session"))
     )
       throw new HttpError(
         "The original session changed during sign-up. Sign in or explicitly open a fresh demo before trying again.",

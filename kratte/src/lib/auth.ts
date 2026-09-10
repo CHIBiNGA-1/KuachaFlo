@@ -10,8 +10,8 @@ import type { Profile } from "@/lib/types";
 export { checkOrigin } from "@/lib/security";
 export { hashPassword, verifyPassword } from "@/lib/passwords";
 
-const SESSION_COOKIE = "shopwise_session_v2";
-const WORKSPACE_COOKIE = "shopwise_workspace";
+const SESSION_COOKIE = "kratte_session_v2";
+const WORKSPACE_COOKIE = "kratte_workspace";
 const digest = (token: string) =>
   createHash("sha256").update(token).digest("hex");
 function cookieOptions() {
@@ -103,7 +103,7 @@ export async function hasSessionContext(request?: Request) {
     jar.has(SESSION_COOKIE) ||
     jar.has("shopwise_session") ||
     jar.has(WORKSPACE_COOKIE) ||
-    !!request?.headers.get("X-Shopwise-Workspace")
+    !!request?.headers.get("X-KraTte-Workspace")
   );
 }
 export async function maintainSession(user: typeof users.$inferSelect) {
@@ -125,7 +125,7 @@ export async function requireWorkspaceUser(request: Request) {
       401,
       "SESSION_EXPIRED",
     );
-  const expected = request.headers.get("X-Shopwise-Workspace");
+  const expected = request.headers.get("X-KraTte-Workspace");
   if (expected && expected !== user.id)
     throw new HttpError(
       "The active account changed in another tab. Reconnect to your original workspace before saving.",

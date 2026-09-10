@@ -387,7 +387,7 @@ export function exportCsv(rows: Entity[], name: string) {
   );
   const a = document.createElement("a");
   a.href = url;
-  a.download = `shopwise-${name}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `kratte-${name}-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }

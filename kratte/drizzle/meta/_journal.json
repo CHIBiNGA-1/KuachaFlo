@@ -15,6 +15,13 @@
       "when": 1788855708004,
       "tag": "0001_production_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788986400000,
+      "tag": "0002_whatsapp_linking",
+      "breakpoints": true
     }
   ]
 }

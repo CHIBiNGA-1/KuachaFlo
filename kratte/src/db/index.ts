@@ -20,9 +20,9 @@ if (config.databaseSsl) {
   for (const key of ["sslmode", "sslcert", "sslkey", "sslrootcert"])
     parsed.searchParams.delete(key);
 }
-const globalForDb = globalThis as typeof globalThis & { __shopwisePool?: Pool };
+const globalForDb = globalThis as typeof globalThis & { __krattePool?: Pool };
 export const pool =
-  globalForDb.__shopwisePool ??
+  globalForDb.__krattePool ??
   new Pool({
     connectionString: parsed.toString(),
     max: config.poolMax,
@@ -32,7 +32,7 @@ export const pool =
     query_timeout: config.statementTimeoutMs + 2000,
     lock_timeout: 3000,
     idle_in_transaction_session_timeout: 15000,
-    application_name: "shopwise",
+    application_name: "kratte",
     allowExitOnIdle: true,
     ...(config.databaseSsl
       ? {
@@ -43,13 +43,13 @@ export const pool =
         }
       : {}),
   });
-if (!globalForDb.__shopwisePool) {
+if (!globalForDb.__krattePool) {
   pool.on("error", (error) =>
     logEvent("error", "database.idle_connection_error", {
       code: databaseErrorCode(error) || "CONNECTION_ERROR",
     }),
   );
-  globalForDb.__shopwisePool = pool;
+  globalForDb.__krattePool = pool;
 }
 export const db = drizzle(pool);
 export type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];

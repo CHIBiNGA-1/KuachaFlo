@@ -4,6 +4,7 @@ import string
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -17,10 +18,66 @@ from app.receipt_service import (
     ReceiptLimitReached, ReceiptTooLarge, ReceiptUnreadable, ReceiptOcrUnavailable,
 )
 from app.whatsapp import verify_signature, send_text, download_media
+from app.gemini_ocr import extract_sales_sheet, GeminiNotConfigured
+from app.kratte_client import import_sales_sheet, KratteImportFailed
 
 router = APIRouter(tags=["whatsapp"])
 
 LINK_CODE_TTL_MINUTES = 15
+
+
+# ── KraTte lookups ───────────────────────────────────────────────────────
+# KraTte's shop_users table lives in this same Postgres database but isn't
+# a SQLAlchemy model here — it's a separate app's schema, deliberately
+# queried with raw SQL rather than pulling its ORM models into this
+# codebase, since these two apps otherwise share nothing.
+
+def _find_kratte_account(db: Session, sender: str) -> str | None:
+    try:
+        row = db.execute(
+            text("SELECT id FROM shop_users WHERE whatsapp_number = :sender"),
+            {"sender": sender},
+        ).first()
+        return str(row[0]) if row else None
+    except Exception:
+        # KraTte's table being briefly unreachable/misconfigured must never
+        # take down KuachaFlo's own core WhatsApp flow.
+        db.rollback()
+        logging.exception("KraTte account lookup failed")
+        return None
+
+
+def _try_link_kratte(db: Session, sender: str, code: str) -> bool:
+    try:
+        candidate = db.execute(
+            text(
+                "SELECT id FROM shop_users "
+                "WHERE whatsapp_link_code = :code AND whatsapp_link_code_expires > now()"
+            ),
+            {"code": code},
+        ).first()
+        if candidate is None:
+            return False
+
+        db.execute(
+            text("UPDATE shop_users SET whatsapp_number = NULL WHERE whatsapp_number = :sender AND id != :id"),
+            {"sender": sender, "id": candidate[0]},
+        )
+        db.execute(
+            text(
+                "UPDATE shop_users SET whatsapp_number = :sender, whatsapp_link_code = NULL, "
+                "whatsapp_link_code_expires = NULL WHERE id = :id"
+            ),
+            {"sender": sender, "id": candidate[0]},
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        logging.exception("KraTte link attempt failed")
+        return False
+
+    send_text(sender, "✅ Linked! Send a photo of your day's sales sheet and I'll log each item in KraTte.")
+    return True
 
 
 # ── Account linking (called from the app) ──────────────────────────────
@@ -107,12 +164,18 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
 def _handle_message(db: Session, sender: str, message: dict) -> None:
     msg_type = message.get("type")
     user = db.query(User).filter(User.whatsapp_number == sender).first()
+    kratte_account_id = None if user else _find_kratte_account(db, sender)
 
     # --- linking flow: a 6-digit code sent as plain text ---
     if msg_type == "text":
-        text = message["text"]["body"].strip()
-        if text.isdigit() and len(text) == 6:
-            _try_link(db, sender, text)
+        text_body = message["text"]["body"].strip()
+        if text_body.isdigit() and len(text_body) == 6:
+            if not _try_link(db, sender, text_body) and not _try_link_kratte(db, sender, text_body):
+                send_text(
+                    sender,
+                    "That code's wrong or expired — grab a fresh one from "
+                    "KuachaFlo → Account → WhatsApp, or KraTte → Settings → WhatsApp.",
+                )
             return
 
         # --- forwarded MoMo/bank SMS: try to recognise it as a transaction
@@ -120,7 +183,7 @@ def _handle_message(db: Session, sender: str, message: dict) -> None:
         # (chit-chat, questions) — that's expected, not an error.
         if user is not None:
             try:
-                result = process_momo_text(db, user, text)
+                result = process_momo_text(db, user, text_body)
             except ReceiptLimitReached as e:
                 send_text(
                     sender,
@@ -139,28 +202,36 @@ def _handle_message(db: Session, sender: str, message: dict) -> None:
                 send_text(sender, f"✅ Logged: {who} — {amount} ({cat})\nView it anytime in KuachaFlo.")
                 return
 
+        if kratte_account_id:
+            send_text(sender, "Send a photo of your day's sales sheet and I'll log each item in KraTte.")
+            return
+
         send_text(
             sender,
             "👋 Send a photo of a receipt, or forward a MoMo/bank transaction alert, and I'll log it in KuachaFlo."
             if user else
-            "👋 To link this number, open KuachaFlo → Account → WhatsApp, "
+            "👋 To link this number, open KuachaFlo → Account → WhatsApp (or KraTte → Settings → WhatsApp), "
             "grab your 6-digit code, and send it here.",
         )
         return
 
-    # --- receipt capture: an image, from an already-linked number ---
+    # --- a photo: receipt capture (KuachaFlo) or sales-sheet capture (KraTte) ---
     if msg_type == "image":
-        if user is None:
+        if user is None and kratte_account_id is None:
             send_text(
                 sender,
-                "This number isn't linked to a KuachaFlo account yet. Open the app → "
-                "Account → WhatsApp to get a code, then send it here first.",
+                "This number isn't linked to a KuachaFlo or KraTte account yet. "
+                "Open either app → Account/Settings → WhatsApp to get a code, then send it here first.",
             )
             return
 
         image_bytes = download_media(message["image"]["id"])
         if image_bytes is None:
             send_text(sender, "⚠️ Couldn't download that image — try sending it again.")
+            return
+
+        if kratte_account_id:
+            _handle_kratte_sales_photo(sender, kratte_account_id, image_bytes)
             return
 
         try:
@@ -192,17 +263,44 @@ def _handle_message(db: Session, sender: str, message: dict) -> None:
     # --- anything else (audio, documents, stickers…) ---
     if user is not None:
         send_text(sender, "Send a photo of a receipt and I'll log it — that's what I'm best at for now.")
+    elif kratte_account_id:
+        send_text(sender, "Send a photo of your day's sales sheet and I'll log each item — that's what I'm best at for now.")
 
 
-def _try_link(db: Session, sender: str, code: str) -> None:
+def _handle_kratte_sales_photo(sender: str, kratte_account_id: str, image_bytes: bytes) -> None:
+    try:
+        items = extract_sales_sheet(image_bytes)
+    except GeminiNotConfigured:
+        send_text(sender, "⚠️ Sales-sheet scanning is temporarily unavailable — try again shortly.")
+        return
+
+    if not items:
+        send_text(sender, "I couldn't make out any items on that sheet — try a clearer or better-lit photo.")
+        return
+
+    try:
+        result = import_sales_sheet(sender, items)
+    except KratteImportFailed as e:
+        send_text(sender, f"⚠️ {e.message}")
+        return
+
+    lines = [f"✅ Logged {result['itemCount']} item(s) as {result.get('saleName', 'a sale')}."]
+    if result.get("amount"):
+        lines.append(f"Total: {result['amount']:,.2f}")
+    if result.get("newProducts"):
+        names = ", ".join(result["newProducts"])
+        lines.append(f"New products added — check their cost price in KraTte: {names}")
+    send_text(sender, "\n".join(lines))
+
+
+def _try_link(db: Session, sender: str, code: str) -> bool:
     candidate = (
         db.query(User)
         .filter(User.whatsapp_link_code == code, User.whatsapp_link_code_expires > datetime.utcnow())
         .first()
     )
     if candidate is None:
-        send_text(sender, "That code's wrong or expired — grab a fresh one from KuachaFlo → Account → WhatsApp.")
-        return
+        return False
 
     existing = db.query(User).filter(User.whatsapp_number == sender).first()
     if existing is not None and existing.id != candidate.id:
@@ -214,3 +312,4 @@ def _try_link(db: Session, sender: str, code: str) -> None:
     db.commit()
 
     send_text(sender, "✅ Linked! Send a photo of any receipt and I'll log it in KuachaFlo.")
+    return True

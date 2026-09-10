@@ -41,7 +41,7 @@ export async function createDemoWorkspace(request: Request, requestId: string) {
     const [created] = await tx
       .insert(users)
       .values({
-        email: `demo-${randomUUID()}@shopwise.local`,
+        email: `demo-${randomUUID()}@kratte.local`,
         name: "Alex Morgan",
         storeName: "The Everyday Store",
         isDemo: true,
