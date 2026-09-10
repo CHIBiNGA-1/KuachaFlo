@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { createSession, hashPassword } from "@/lib/auth";
+import { serverEnv } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -33,7 +34,13 @@ function verifyToken(token: string): { email: string; name: string } | null {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const token = url.searchParams.get("token");
-  const redirectTo = new URL("/", url.origin);
+  // Deliberately NOT url.origin — behind Render's reverse proxy, the
+  // request's own perceived origin can resolve to the app's internal
+  // bind address (localhost:PORT) rather than the public hostname,
+  // which is exactly what sent users to a dead localhost link instead
+  // of the real site. appOrigin is the explicitly configured, trusted
+  // public URL — the same one APP_ORIGIN/security checks already rely on.
+  const redirectTo = new URL("/", serverEnv().appOrigin);
 
   if (!token) {
     redirectTo.searchParams.set("sso_error", "missing_token");
