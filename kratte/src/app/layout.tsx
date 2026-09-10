@@ -5,6 +5,7 @@ import "./globals.css";
 import "./reliability.css";
 import "./inventory.css";
 import "./calm.css";
+import "./kuachaflo-theme.css";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "KraTte — A good day to do business",

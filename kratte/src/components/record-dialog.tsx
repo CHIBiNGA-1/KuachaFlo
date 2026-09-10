@@ -42,6 +42,38 @@ export function RecordEditor({
   const purchase = resource === "purchases";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [imageUrl, setImageUrl] = useState<string>(
+    resource === "inventory" ? String(entity?.image || (entity ? productArt(entity).src : "")) : "",
+  );
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageError, setImageError] = useState("");
+
+  async function handleImageFile(fileList: FileList | null) {
+    const file = fileList?.[0];
+    if (!file) return;
+    setImageUploading(true);
+    setImageError("");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      // Not using the shared api() helper here — it forces
+      // Content-Type: application/json onto any body, which would break
+      // the multipart boundary the browser needs to set itself for a
+      // file upload.
+      const res = await fetch("/api/records/inventory-image", {
+        method: "POST",
+        body: form,
+        credentials: "same-origin",
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "Couldn't upload that image.");
+      setImageUrl(body.url);
+    } catch (err) {
+      setImageError(err instanceof Error ? err.message : "Couldn't upload that image.");
+    } finally {
+      setImageUploading(false);
+    }
+  }
   const [items, setItems] = useState<LineItem[]>(
     entity?.items ||
       (initialProduct
@@ -447,6 +479,47 @@ export function RecordEditor({
                         placeholder={field.placeholder}
                         maxLength={2000}
                       />
+                    ) : field.type === "image" ? (
+                      <div className="image-field">
+                        <input type="hidden" name={field.key} value={imageUrl} />
+                        <div className="image-field-preview">
+                          {imageUrl ? (
+                            <img src={imageUrl} alt="" />
+                          ) : (
+                            <span className="image-field-placeholder">No photo yet</span>
+                          )}
+                        </div>
+                        <div className="image-field-actions">
+                          <label className="button button-small">
+                            {imageUploading ? <Spinner /> : null}
+                            {imageUploading ? "Uploading…" : "Take photo or choose file"}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              hidden
+                              disabled={imageUploading}
+                              onChange={(e) => handleImageFile(e.target.files)}
+                            />
+                          </label>
+                          {imageUrl && (
+                            <button
+                              type="button"
+                              className="button button-small button-danger-ghost"
+                              onClick={() => setImageUrl("")}
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          type="url"
+                          value={imageUrl}
+                          onChange={(e) => setImageUrl(e.target.value)}
+                          placeholder="Or paste an image URL"
+                          maxLength={500}
+                        />
+                        {imageError && <small className="field-error">{imageError}</small>}
+                      </div>
                     ) : (
                       <input
                         name={field.key}

@@ -78,7 +78,7 @@ export type Workspace = { user: Profile; records: Record<Resource, Entity[]> };
 export type Field = {
   key: keyof RecordData;
   label: string;
-  type?: "text" | "number" | "email" | "date" | "select" | "textarea";
+  type?: "text" | "number" | "email" | "date" | "select" | "textarea" | "image";
   options?: string[];
   required?: boolean;
   placeholder?: string;
@@ -156,8 +156,8 @@ export const configs: Record<Resource, ResourceConfig> = {
       { key: "supplier", label: "Supplier", placeholder: "Supplier name" },
       {
         key: "image",
-        label: "Product image URL",
-        type: "text",
+        label: "Product image",
+        type: "image",
         full: true,
         placeholder: "https://… (optional)",
       },
