@@ -37,7 +37,18 @@ export const pool =
     ...(config.databaseSsl
       ? {
           ssl: {
-            rejectUnauthorized: true,
+            // Supabase's pooler (Supavisor) presents a certificate chain
+            // that Node's default trust store doesn't recognise ("self-
+            // signed certificate in certificate chain") — a known class of
+            // issue with that specific pooler layer, distinct from
+            // Supabase's direct DB connection cert. Pinning the real CA
+            // via DATABASE_CA_CERT is the correct long-term fix; this
+            // env-gated escape hatch exists so an operator can explicitly
+            // choose to unblock a live outage now (traffic is still
+            // TLS-encrypted either way — this only skips chain
+            // validation, not encryption) rather than the default
+            // silently becoming less strict for everyone.
+            rejectUnauthorized: !config.databaseSslInsecure,
             ...(config.databaseCa ? { ca: config.databaseCa } : {}),
           },
         }

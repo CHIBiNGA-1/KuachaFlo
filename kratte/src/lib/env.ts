@@ -72,6 +72,7 @@ export function parseServerEnv(source: Environment) {
     seedNewAccounts: flag("SEED_NEW_ACCOUNTS", !production),
     signupEnabled: flag("ALLOW_SIGNUP", true),
     databaseSsl: flag("DATABASE_SSL", production),
+    databaseSslInsecure: flag("DATABASE_SSL_INSECURE", false),
     databaseCa: source.DATABASE_CA_CERT?.replaceAll("\\n", "\n"),
     poolMax: integer("DATABASE_POOL_MAX", 10, 1, 100),
     connectionTimeoutMs: integer(
