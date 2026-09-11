@@ -14,6 +14,22 @@ class UserOut(BaseModel):
     whatsapp_number: Optional[str] = None
 
 
+class LedgerEntryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    context: str  # "personal" | "business" — derived, not stored
+    direction: str
+    merchant: Optional[str]
+    total_amount: Optional[float]
+    currency: str
+    purchase_date: Optional[date]
+    category_id: Optional[str] = None
+    source: str
+    line_items: Optional[list] = None
+    created_at: datetime
+
+
 class BusinessOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
