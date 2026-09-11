@@ -9,7 +9,13 @@ import { serverEnv } from "@/lib/env";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-function verifyToken(token: string): { email: string; name: string } | null {
+const PLAN_LABELS: Record<string, string> = {
+  free: "Free",
+  pro: "Pro",
+  business: "Business",
+};
+
+function verifyToken(token: string): { email: string; name: string; plan: string } | null {
   const secret = process.env.KRATTE_SSO_SECRET;
   if (!secret) return null;
 
@@ -25,7 +31,11 @@ function verifyToken(token: string): { email: string; name: string } | null {
     const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf8"));
     if (typeof payload.exp !== "number" || Date.now() > payload.exp * 1000) return null;
     if (typeof payload.email !== "string" || !payload.email) return null;
-    return { email: payload.email, name: payload.name || payload.email.split("@")[0] };
+    return {
+      email: payload.email,
+      name: payload.name || payload.email.split("@")[0],
+      plan: PLAN_LABELS[payload.plan] || "Free",
+    };
   } catch {
     return null;
   }
@@ -79,9 +89,21 @@ export async function GET(request: Request) {
         name: claim.name,
         passwordHash,
         isDemo: false,
+        settings: sql`jsonb_set(
+          '{"currency":"USD","timezone":"America/New_York","lowStockAlerts":true,"orderNotifications":true,"weeklyDigest":true}'::jsonb,
+          '{plan}', ${JSON.stringify(claim.plan)}::jsonb
+        )`,
       })
       .returning({ id: users.id });
     userId = created.id;
+  } else {
+    // One product, one plan — KuachaFlo is the source of truth for
+    // billing. Sync it here rather than letting KraTte carry its own
+    // independent (and, until now, entirely fake) subscription concept.
+    await db
+      .update(users)
+      .set({ settings: sql`jsonb_set(${users.settings}, '{plan}', ${JSON.stringify(claim.plan)}::jsonb)` })
+      .where(sql`${users.id} = ${userId}`);
   }
 
   await createSession(userId);

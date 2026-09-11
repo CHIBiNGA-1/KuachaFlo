@@ -16,14 +16,19 @@ class KratteImportFailed(Exception):
         super().__init__(message)
 
 
-def build_sso_url(email: str, name: str | None) -> str:
+def build_sso_url(email: str, name: str | None, plan: str) -> str:
     """
     Signs a short-lived handoff token so a KuachaFlo user can land inside
     KraTte already logged in — one identity (matched by email) instead of
     a second password. Verified on KraTte's side against the same shared
     secret; see kratte/src/app/api/sso/kuachaflo/route.ts.
+
+    Includes the KuachaFlo plan so KraTte can sync it on login rather
+    than maintaining its own separate, unrelated subscription concept —
+    this is one product with one plan, not two products that happen to
+    share a login.
     """
-    payload = {"email": email, "name": name, "exp": int(time.time()) + 120}
+    payload = {"email": email, "name": name, "plan": plan, "exp": int(time.time()) + 120}
     payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
     signature = hmac.new(settings.kratte_sso_secret.encode(), payload_b64.encode(), hashlib.sha256).hexdigest()
     token = f"{payload_b64}.{signature}"

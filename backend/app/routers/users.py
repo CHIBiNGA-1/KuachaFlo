@@ -20,4 +20,4 @@ def get_kratte_sso_url(user: User = Depends(get_current_user)):
         raise HTTPException(400, "Your account needs an email set before opening KraTte.")
     if not settings.kratte_sso_secret:
         raise HTTPException(503, "KraTte isn't connected yet.")
-    return {"url": build_sso_url(user.email, user.full_name)}
+    return {"url": build_sso_url(user.email, user.full_name, user.plan)}

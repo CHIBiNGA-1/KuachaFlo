@@ -18,8 +18,8 @@ import {
 } from "lucide-react";
 import { api, useShop } from "@/components/shop-provider";
 import { Avatar, PageHeading, Spinner } from "@/components/ui";
-import { dateLabel, type StoreSettings } from "@/lib/types";
-export function Settings({ onPlans }: { onPlans: () => void }) {
+import { type StoreSettings } from "@/lib/types";
+export function Settings() {
   const { data, saveProfile, notify } = useShop();
   const [tab, setTab] = useState("General");
   const [busy, setBusy] = useState(false);
@@ -473,8 +473,8 @@ export function Settings({ onPlans }: { onPlans: () => void }) {
           <div className="settings-card-heading">
             <CreditCard size={21} />
             <div>
-              <h2>A plan that grows with you</h2>
-              <p>Your workspace subscription, without the fine print.</p>
+              <h2>Your plan</h2>
+              <p>KraTte and KuachaFlo share one subscription — manage it in either place.</p>
             </div>
           </div>
           <div className="billing-content">
@@ -485,40 +485,16 @@ export function Settings({ onPlans }: { onPlans: () => void }) {
               <div>
                 <span>YOUR CURRENT PLAN</span>
                 <h3>{user.settings.plan}</h3>
-                <p>
-                  {user.settings.trialEnds
-                    ? `Your free trial ends ${dateLabel(user.settings.trialEnds)}.`
-                    : "Everything you need to get your business organized."}
-                </p>
+                <p>Synced from your KuachaFlo account.</p>
               </div>
-              <span className="current-plan-price">
-                $0<small>due today</small>
-              </span>
             </div>
-            <div className="plan-feature-list">
-              {[
-                "Unlimited products and customers",
-                "Sales, purchases & expense tracking",
-                "Live inventory and reports",
-                "Secure, persistent workspace",
-              ].map((feature) => (
-                <span key={feature}>
-                  <CheckCircle2 size={17} />
-                  {feature}
-                </span>
-              ))}
-            </div>
-            <button className="button button-primary" onClick={onPlans}>
+            <a
+              className="button button-primary"
+              href={`${process.env.NEXT_PUBLIC_KUACHAFLO_URL || "https://kuachaflo.vercel.app"}/billing`}
+            >
               <Sparkles size={16} />
-              {user.settings.trialEnds
-                ? "View plan details"
-                : "Explore KraTte Pro"}
-            </button>
-            <p className="billing-note">
-              No payment method is connected. Trial activation is free and will
-              not create a charge. Paid subscriptions are not enabled in this
-              workspace.
-            </p>
+              Manage plan in KuachaFlo
+            </a>
           </div>
         </section>
       )}

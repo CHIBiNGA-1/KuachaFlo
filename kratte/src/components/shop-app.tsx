@@ -31,7 +31,6 @@ import {
   Check,
   Command,
   Boxes,
-  CircleCheck,
   TrendingUp,
   Keyboard,
   BookOpen,
@@ -64,7 +63,6 @@ import {
 import { analytics } from "@/lib/analytics";
 import {
   configs,
-  dateLabel,
   money,
   resources,
   type Entity,
@@ -135,8 +133,6 @@ export function ShopApp({ initialFilter = "" }: { initialFilter?: string }) {
   const [searchIndex, setSearchIndex] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [plansOpen, setPlansOpen] = useState(false);
-  const [planBusy, setPlanBusy] = useState(false);
   const [editor, setEditor] = useState<{
     resource: Resource;
     entity?: Entity;
@@ -472,15 +468,13 @@ export function ShopApp({ initialFilter = "" }: { initialFilter?: string }) {
                       <Settings2 size={16} />
                       Account & settings
                     </button>
-                    <button
-                      onClick={() => {
-                        setProfileMenu(false);
-                        setPlansOpen(true);
-                      }}
+                    <a
+                      href={`${process.env.NEXT_PUBLIC_KUACHAFLO_URL || "https://kuachaflo.vercel.app"}/billing`}
+                      onClick={() => setProfileMenu(false)}
                     >
                       <Sparkles size={16} />
                       Plan & billing
-                    </button>
+                    </a>
                     {data?.user.isDemo ? (
                       <>
                         <Link href="/login?mode=register">
@@ -561,7 +555,7 @@ export function ShopApp({ initialFilter = "" }: { initialFilter?: string }) {
           ) : section === "reports" ? (
             <Reports onNavigate={navigate} />
           ) : section === "settings" ? (
-            <Settings onPlans={() => setPlansOpen(true)} />
+            <Settings />
           ) : section === "inventory" ? (
             <InventoryBoard
               initialFilter={initialFilter}
@@ -864,113 +858,6 @@ export function ShopApp({ initialFilter = "" }: { initialFilter?: string }) {
               <LockKeyhole size={15} />
               Demo data is private to this browser. Create an account to keep
               access across devices.
-            </p>
-          </div>
-        </Modal>
-      )}
-      {plansOpen && (
-        <Modal
-          title="Good business. More possibilities."
-          description="Start small. Have room to grow. No surprises along the way."
-          onClose={() => {
-            if (!planBusy) setPlansOpen(false);
-          }}
-          wide
-          className="plans-modal"
-        >
-          <div className="plans-body">
-            <div className="plan-card">
-              <span className="plan-symbol">
-                <Store size={24} />
-              </span>
-              <h3>Starter</h3>
-              <p>A well-organized beginning.</p>
-              <div className="plan-price">
-                $0<span>/ forever</span>
-              </div>
-              <div className="plan-features">
-                {[
-                  "Your own secure workspace",
-                  "Unlimited products & contacts",
-                  "Sales, purchases & expenses",
-                  "Real-time inventory tracking",
-                ].map((f) => (
-                  <span key={f}>
-                    <Check size={16} />
-                    {f}
-                  </span>
-                ))}
-              </div>
-              <button className="button" disabled>
-                Included in your workspace
-              </button>
-            </div>
-            <div className="plan-card featured-plan">
-              <span className="popular-plan">A LITTLE EXTRA POSSIBILITY</span>
-              <span className="plan-symbol">
-                <Sparkles size={24} />
-              </span>
-              <h3>KraTte Pro</h3>
-              <p>For your next chapter of growth.</p>
-              <div className="plan-price">
-                $29<span>/ store / month</span>
-              </div>
-              <div className="plan-features">
-                {[
-                  "Everything in Starter",
-                  "Business & customer insights",
-                  "Financial reports & CSV exports",
-                  "Unlimited team member records",
-                ].map((f) => (
-                  <span key={f}>
-                    <Check size={16} />
-                    {f}
-                  </span>
-                ))}
-              </div>
-              <button
-                className="button button-primary"
-                disabled={planBusy || !!data?.user.settings.trialEnds}
-                onClick={async () => {
-                  setPlanBusy(true);
-                  try {
-                    await saveProfile({ action: "start-trial" });
-                    notify(
-                      "A new chapter starts here. Your 14-day Pro trial is active!",
-                    );
-                  } catch (e) {
-                    notify(
-                      e instanceof Error
-                        ? e.message
-                        : "Unable to start your trial.",
-                      "error",
-                    );
-                  } finally {
-                    setPlanBusy(false);
-                  }
-                }}
-              >
-                {planBusy ? (
-                  <Spinner />
-                ) : data?.user.settings.trialEnds ? (
-                  <CircleCheck size={17} />
-                ) : (
-                  <Sparkles size={17} />
-                )}{" "}
-                {data?.user.settings.trialEnds
-                  ? `Trial active until ${dateLabel(data.user.settings.trialEnds).replace(", 2026", "")}`
-                  : "Start your 14-day free trial"}
-              </button>
-              <small className="plan-no-card">
-                No card needed. No automatic charges.
-              </small>
-            </div>
-          </div>
-          <div className="plans-disclaimer">
-            <ShieldCheck size={17} />
-            <p>
-              All features are available to explore in this demo. Paid billing
-              isn’t connected, and starting a trial won’t charge you.
             </p>
           </div>
         </Modal>
