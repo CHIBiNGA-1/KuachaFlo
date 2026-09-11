@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import get_current_user
 from app.memory import remember
-from app.models import Business, Category, LedgerEntry, User
+from app.models import Business, Category, LedgerEntry, Order, User
 from app.schemas import (
     CategoryNested,
     LedgerCreate,
@@ -39,7 +39,15 @@ def _cat_nested(cat: Category | None) -> CategoryNested | None:
     return CategoryNested(id=cat.id, name=cat.name, slug=cat.slug, icon=cat.icon)
 
 
-def _out(entry: LedgerEntry, cat: Category | None) -> LedgerEntryOut:
+def _order_refs(db: Session, entries: list[LedgerEntry]) -> dict[str, str]:
+    ids = {e.order_id for e in entries if e.order_id}
+    if not ids:
+        return {}
+    rows = db.query(Order.id, Order.reference).filter(Order.id.in_(ids)).all()
+    return {i: r for i, r in rows}
+
+
+def _out(entry: LedgerEntry, cat: Category | None, order_ref: str | None = None) -> LedgerEntryOut:
     return LedgerEntryOut(
         id=entry.id,
         context="business" if entry.business_id else "personal",
@@ -56,7 +64,7 @@ def _out(entry: LedgerEntry, cat: Category | None) -> LedgerEntryOut:
         image_path=entry.image_path,
         thumbnail_path=entry.thumbnail_path,
         line_items=entry.line_items,
-        order_ref=None,  # Phase 3 resolves this via order_id
+        order_ref=order_ref,
         business_id=entry.business_id,
         created_at=entry.created_at,
     )
@@ -147,8 +155,9 @@ def get_ledger(
 
     cats = {c.id: c for c in db.query(Category).all()}
     page = rows[:limit]
+    refs = _order_refs(db, page)
     return LedgerPage(
-        items=[_out(e, cats.get(e.category_id)) for e in page],
+        items=[_out(e, cats.get(e.category_id), refs.get(e.order_id or "")) for e in page],
         next_cursor=_encode_cursor(page[-1]) if len(rows) > limit else None,
     )
 
@@ -282,7 +291,8 @@ def create_entry(
     db.add(entry)
     db.commit()
     db.refresh(entry)
-    return _out(entry, cat)
+    refs = _order_refs(db, [entry])
+    return _out(entry, cat, refs.get(entry.order_id or ""))
 
 
 @router.patch("/{entry_id}", response_model=LedgerEntryOut)
@@ -355,7 +365,8 @@ def update_entry(
         )
 
     cats = {c.id: c for c in db.query(Category).all()}
-    return _out(entry, cats.get(entry.category_id))
+    refs = _order_refs(db, [entry])
+    return _out(entry, cats.get(entry.category_id), refs.get(entry.order_id or ""))
 
 
 @router.delete("/{entry_id}", status_code=204)

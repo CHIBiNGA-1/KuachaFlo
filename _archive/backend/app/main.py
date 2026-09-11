@@ -7,7 +7,8 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db
-from app.routers import receipts, admin, categories, reports, billing, users, whatsapp, business, ledger, ingest
+from app.routers import receipts, admin, categories, reports, billing, users, whatsapp, business, ledger, ingest, shop
+from app.shop.errors import ShopError, shop_error_handler
 from app.storage import uses_supabase_storage
 
 @asynccontextmanager
@@ -50,6 +51,9 @@ app.include_router(whatsapp.router)
 app.include_router(business.router)
 app.include_router(ledger.router)
 app.include_router(ingest.router)
+app.include_router(shop.router)
+
+app.add_exception_handler(ShopError, shop_error_handler)
 
 # Serves uploaded receipt images at /uploads/{user_id}/{file}.jpg — only
 # relevant in local-dev fallback mode; in production images live in

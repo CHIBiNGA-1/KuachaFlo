@@ -22,6 +22,9 @@ from app.memory import lookup, normalize_party, remember
 from app.models import (
     Business, Category, LedgerEntry, User, WhatsAppPendingClarification,
 )
+from app.shop.errors import ShopError
+from app.shop.orders import create_order
+from app.shop.sweep import match_or_create_products
 from app.storage import save_receipt_image
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
@@ -145,27 +148,71 @@ def ingest_draft(
 
     # Sales sheets are unambiguously business. Without a shop there is
     # nowhere honest to file one — say so instead of guessing.
-    if draft["kind"] == "sales_sheet" and _business_for(db, user) is None:
+    business = _business_for(db, user)
+    if draft["kind"] == "sales_sheet" and business is None:
         return IngestOutcome(
             needs_shop=True,
             message="This looks like a sales sheet — start your shop in the app and send it again.",
         )
+    if draft["kind"] == "sales_sheet":
+        return _ingest_sales_sheet(db, user, business, draft, source=source, sender=sender,
+                                   image_path=image_path, thumbnail_path=thumbnail_path)
 
     if not _complete(draft):
-        expires = datetime.utcnow() + timedelta(hours=CLARIFICATION_TTL_HOURS)
-        row = WhatsAppPendingClarification(
-            user_id=user.id, chat_sender=sender,
-            draft_entry={**draft, "source": source, "image_path": image_path,
-                         "thumbnail_path": thumbnail_path},
-            question=draft.get("needs_question") or _default_question(draft),
-            expires_at=expires,
-        )
-        db.add(row)
-        db.commit()
-        db.refresh(row)
+        row = _store_draft(db, user, draft, source=source, sender=sender,
+                           image_path=image_path, thumbnail_path=thumbnail_path,
+                           question=draft.get("needs_question") or _default_question(draft))
         return IngestOutcome(draft_id=row.id, question=row.question)
 
     return IngestOutcome(entry=_commit(db, user, draft, source, image_path, thumbnail_path))
+
+
+def _store_draft(db, user, draft, *, source, sender, image_path, thumbnail_path, question):
+    expires = datetime.utcnow() + timedelta(hours=CLARIFICATION_TTL_HOURS)
+    row = WhatsAppPendingClarification(
+        user_id=user.id, chat_sender=sender,
+        draft_entry={**draft, "source": source, "image_path": image_path,
+                     "thumbnail_path": thumbnail_path},
+        question=question,
+        expires_at=expires,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def _ingest_sales_sheet(db, user, business, draft, *, source, sender, image_path, thumbnail_path):
+    """A sales sheet becomes a real Completed sale: products matched or
+    created, stock decremented, income in the ledger — one motion."""
+    lines, created = match_or_create_products(db, business, draft.get("line_items"))
+    if not lines:
+        row = _store_draft(
+            db, user, draft, source=source, sender=sender,
+            image_path=image_path, thumbnail_path=thumbnail_path,
+            question="I couldn't make out any items on that sheet — try a clearer or better-lit photo.",
+        )
+        return IngestOutcome(draft_id=row.id, question=row.question)
+
+    occurred = draft.get("occurred_on")
+    try:
+        sale = create_order(db, user, business, "sale", {
+            "items": lines, "status": "Completed",
+            "customer": draft.get("party") or "Walk-in",
+            "date": occurred or datetime.utcnow().date().isoformat(),
+            "channel": "Retail", "payment": "Paid",
+        })
+        db.commit()
+    except ShopError as e:
+        db.rollback()
+        return IngestOutcome(message=e.message)
+
+    entry = db.query(LedgerEntry).filter(LedgerEntry.id == sale.ledger_entry_id).first()
+    if entry is not None and created:
+        entry.note = f"New products added — check their cost price: {', '.join(created)}"
+        db.commit()
+        db.refresh(entry)
+    return IngestOutcome(entry=entry)
 
 
 def _commit(
@@ -199,11 +246,12 @@ def _commit(
     status = "needs_review" if (force_review or draft.get("confidence") == "low") else "processed"
     entry_note = note
     if kind == "sales_sheet":
-        # Phase 2 records the income + preserves every line item; the
-        # Phase 3 shop port sweeps sales_sheet rows into real orders with
-        # stock effects. Marked review so the income is never silent.
+        # Last resort only (legacy clients that can't converse): income is
+        # recorded with line items preserved, and POST /shop/sweep-sales
+        # converts it into a real order with stock effects. Marked review
+        # so the income is never silent.
         status = "needs_review"
-        entry_note = (note + " " if note else "") + "Sales sheet — stock sync arrives with the shop."
+        entry_note = (note + " " if note else "") + "Sales sheet income — convert to an order from the Shop."
         if draft.get("party") in (None, "", "Day sales"):
             draft = {**draft, "party": "Day sales"}
 
@@ -351,6 +399,19 @@ def answer_draft(db: Session, user: User, draft_id: str, answer: str) -> IngestO
             db.commit()
             db.refresh(row)
             return IngestOutcome(draft_id=row.id, question=row.question)
+
+    if draft.get("kind") == "sales_sheet":
+        # A clarified party/date can still complete the sheet — route it
+        # through real order creation, not the income placeholder.
+        source, sender = draft.get("source", "app_manual"), row.chat_sender
+        img, thumb = draft.get("image_path"), draft.get("thumbnail_path")
+        db.delete(row)
+        db.commit()
+        business = _business_for(db, user)
+        if business is None:
+            return IngestOutcome(needs_shop=True, message="Start your shop to file sales sheets.")
+        return _ingest_sales_sheet(db, user, business, draft, source=source,
+                                   sender=sender, image_path=img, thumbnail_path=thumb)
 
     draft["confidence"] = "medium"  # a human answered — trust it
     entry = _commit(db, user, draft, draft.get("source", "app_manual"),

@@ -200,6 +200,167 @@ class Business(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class Product(Base):
+    """Shop inventory. Money lives in the ledger; this is what's on the shelf."""
+    __tablename__ = "products"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    business_id = Column(String, ForeignKey("businesses.id"), nullable=False, index=True)
+    sku = Column(String, nullable=False)
+    sku_normalized = Column(String, nullable=False, index=True)  # lower+trim, unique per business
+    name = Column(String, nullable=False)
+    category = Column(String, nullable=False, default="Other")
+    price = Column(Numeric(12, 2), nullable=False, default=0)
+    cost = Column(Numeric(12, 2), nullable=False, default=0)
+    stock = Column(Integer, nullable=False, default=0)
+    reorder_at = Column(Integer, nullable=False, default=0)
+    unit = Column(String, nullable=True)
+    supplier_id = Column(String, ForeignKey("suppliers.id"), nullable=True)
+    image = Column(String, nullable=True)
+    notes = Column(String, nullable=True)
+    pinned = Column(Boolean, default=False)
+    archived = Column(Boolean, default=False)
+    version = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Order(Base):
+    """Sales + purchases in one table (kind discriminates). Totals are
+    server-computed; the money side is a linked ledger entry."""
+    __tablename__ = "orders"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    business_id = Column(String, ForeignKey("businesses.id"), nullable=False, index=True)
+    kind = Column(String, nullable=False)  # sale | purchase
+    reference = Column(String, nullable=False)  # #SW-N | #PO-N, unique per (business, kind)
+    party_name = Column(String, nullable=False, default="")
+    party_id = Column(String, nullable=True)
+    status = Column(String, nullable=False)  # sale: Completed|Pending|Cancelled; purchase: Ordered|Received|Cancelled
+    channel = Column(String, nullable=False, default="Retail")
+    payment = Column(String, nullable=False, default="Paid")
+    occurred_on = Column(Date, nullable=True)
+    due_on = Column(Date, nullable=True)
+    notes = Column(String, nullable=True)
+    amount_total = Column(Numeric(12, 2), nullable=False, default=0)
+    ledger_entry_id = Column(String, ForeignKey("ledger_entries.id"), nullable=True)
+    version = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class OrderItem(Base):
+    __tablename__ = "order_items"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    order_id = Column(String, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
+    product_id = Column(String, ForeignKey("products.id"), nullable=False, index=True)
+    name_snapshot = Column(String, nullable=False)
+    quantity = Column(Integer, nullable=False)
+    price_snapshot = Column(Numeric(12, 2), nullable=False)
+    cost_snapshot = Column(Numeric(12, 2), nullable=False)
+
+
+class Customer(Base):
+    __tablename__ = "customers"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    business_id = Column(String, ForeignKey("businesses.id"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    company = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    channel = Column(String, nullable=False, default="Retail")
+    balance_opening = Column(Numeric(12, 2), nullable=False, default=0)
+    address = Column(String, nullable=True)
+    notes = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Supplier(Base):
+    __tablename__ = "suppliers"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    business_id = Column(String, ForeignKey("businesses.id"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    contact_person = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    category = Column(String, nullable=True)
+    status = Column(String, nullable=False, default="Active")
+    address = Column(String, nullable=True)
+    notes = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TeamMember(Base):
+    """Staff directory only in v1 — no separate logins (blueprint §19)."""
+    __tablename__ = "team_members"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    business_id = Column(String, ForeignKey("businesses.id"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    email = Column(String, nullable=True)
+    role = Column(String, nullable=False, default="")
+    status = Column(String, nullable=False, default="Active")
+    phone = Column(String, nullable=True)
+    notes = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class OrderSequence(Base):
+    """Per-business #SW/#PO counters (port of nextOrderReference)."""
+    __tablename__ = "order_sequences"
+
+    business_id = Column(String, ForeignKey("businesses.id", ondelete="CASCADE"), primary_key=True)
+    kind = Column(String, primary_key=True)  # sale | purchase
+    value = Column(Integer, nullable=False)
+
+
+class ShopIdempotencyKey(Base):
+    """Idempotency-Key store (port of mutationRequests)."""
+    __tablename__ = "shop_idempotency_keys"
+
+    business_id = Column(String, ForeignKey("businesses.id", ondelete="CASCADE"), primary_key=True)
+    key = Column(String, primary_key=True)
+    fingerprint = Column(String, nullable=False)
+    response = Column(JSON, nullable=False)  # {"type": ..., "id": ...}
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ShopAuditEvent(Base):
+    """Money/stock audit trail (port of appendAudit)."""
+    __tablename__ = "shop_audit_events"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    business_id = Column(String, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    action = Column(String, nullable=False)
+    resource = Column(String, nullable=False)
+    record_id = Column(String, nullable=True)
+    request_id = Column(String, nullable=False)
+    event_metadata = Column("metadata", JSON, nullable=False, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PendingShopClaim(Base):
+    """A KraTte shop whose email matched no KuachaFlo user at migration
+    time. The shop data waits here (untouched in shop_* tables) until the
+    owner signs in with that email and claims it — we never fabricate
+    user accounts."""
+    __tablename__ = "pending_shop_claims"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    email = Column(String, nullable=False, index=True)
+    shop_user_id = Column(String, nullable=False, unique=True)
+    shop_name = Column(String, nullable=True)
+    claimed = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class WhatsAppProcessedMessage(Base):
     """
     Dedup guard for the webhook. Meta retries a webhook delivery if it

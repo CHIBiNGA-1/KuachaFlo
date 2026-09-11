@@ -22,7 +22,7 @@ from app.ingestion import (
     answer_draft, cancel_draft, list_drafts, process_image, process_text,
 )
 from app.models import Category, User
-from app.routers.ledger import _out
+from app.routers.ledger import _order_refs, _out
 from app.schemas import LedgerEntryOut
 
 router = APIRouter(prefix="/api/v1/ingest", tags=["ingest"])
@@ -64,7 +64,8 @@ def _to_result(db: Session, response: Response, outcome) -> IngestResult:
             db.query(Category).filter(Category.id == outcome.entry.category_id).first()
             if outcome.entry.category_id else None
         )
-        entry = _out(outcome.entry, cat)
+        refs = _order_refs(db, [outcome.entry])
+        entry = _out(outcome.entry, cat, refs.get(outcome.entry.order_id or ""))
         response.status_code = 201
     elif outcome.draft_id is not None:
         response.status_code = 202
@@ -148,8 +149,9 @@ def clarify(
         db.query(Category).filter(Category.id == outcome.entry.category_id).first()
         if outcome.entry.category_id else None
     )
+    refs = _order_refs(db, [outcome.entry])
     response.status_code = 201
-    return _out(outcome.entry, cat)
+    return _out(outcome.entry, cat, refs.get(outcome.entry.order_id or ""))
 
 
 @router.get("/drafts", response_model=list[DraftOut])
