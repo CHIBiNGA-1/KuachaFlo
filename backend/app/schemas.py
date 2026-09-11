@@ -32,6 +32,7 @@ class LedgerEntryOut(BaseModel):
     currency: str
     occurred_on: Optional[date]
     category: Optional[CategoryNested] = None
+    note: Optional[str] = None
     source: str
     status: str
     confidence: Optional[str] = None

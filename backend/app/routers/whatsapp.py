@@ -1,83 +1,52 @@
+"""WhatsApp capture: one number, one user, one pipeline.
+
+Content decides what a message IS (receipt, MoMo alert, sales sheet,
+chit-chat); the linked account only decides whose books it lands in.
+There is no KraTte-side linking anymore — one number → one user → one
+ledger (blueprint §12).
+"""
+
 import logging
 import random
 import string
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.classify import classify_image, classify_text
 from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import User, WhatsAppProcessedMessage
-from app.schemas import WhatsAppLinkCodeOut
-from app.receipt_service import (
-    process_receipt_image, process_momo_text,
-    ReceiptLimitReached, ReceiptTooLarge, ReceiptUnreadable, ReceiptOcrUnavailable,
+from app.ingestion import (
+    EntryLimitReached, EntryTooLarge, EntryUnreadable, OcrUnavailable,
+    answer_draft, get_open_draft, process_image, process_text,
 )
+from app.models import Category, User, WhatsAppPendingClarification, WhatsAppProcessedMessage
+from app.schemas import WhatsAppLinkCodeOut
 from app.whatsapp import verify_signature, send_text, download_media
-from app.gemini_ocr import extract_sales_sheet, GeminiNotConfigured
-from app.kratte_client import import_sales_sheet, KratteImportFailed
 
 router = APIRouter(tags=["whatsapp"])
 
 LINK_CODE_TTL_MINUTES = 15
 
-
-# ── KraTte lookups ───────────────────────────────────────────────────────
-# KraTte's shop_users table lives in this same Postgres database but isn't
-# a SQLAlchemy model here — it's a separate app's schema, deliberately
-# queried with raw SQL rather than pulling its ORM models into this
-# codebase, since these two apps otherwise share nothing.
-
-def _find_kratte_account(db: Session, sender: str) -> str | None:
-    try:
-        row = db.execute(
-            text("SELECT id FROM shop_users WHERE whatsapp_number = :sender"),
-            {"sender": sender},
-        ).first()
-        return str(row[0]) if row else None
-    except Exception:
-        # KraTte's table being briefly unreachable/misconfigured must never
-        # take down KuachaFlo's own core WhatsApp flow.
-        db.rollback()
-        logging.exception("KraTte account lookup failed")
-        return None
-
-
-def _try_link_kratte(db: Session, sender: str, code: str) -> bool:
-    try:
-        candidate = db.execute(
-            text(
-                "SELECT id FROM shop_users "
-                "WHERE whatsapp_link_code = :code AND whatsapp_link_code_expires > now()"
-            ),
-            {"code": code},
-        ).first()
-        if candidate is None:
-            return False
-
-        db.execute(
-            text("UPDATE shop_users SET whatsapp_number = NULL WHERE whatsapp_number = :sender AND id != :id"),
-            {"sender": sender, "id": candidate[0]},
-        )
-        db.execute(
-            text(
-                "UPDATE shop_users SET whatsapp_number = :sender, whatsapp_link_code = NULL, "
-                "whatsapp_link_code_expires = NULL WHERE id = :id"
-            ),
-            {"sender": sender, "id": candidate[0]},
-        )
-        db.commit()
-    except Exception:
-        db.rollback()
-        logging.exception("KraTte link attempt failed")
-        return False
-
-    send_text(sender, "✅ Linked! Send a photo of your day's sales sheet and I'll log each item in KraTte.")
-    return True
+LINK_COPY = (
+    "👋 To link this number, open KuachaFlo → You → WhatsApp, "
+    "grab your 6-digit code, and send it here."
+)
+WELCOME_COPY = (
+    "✅ Linked! Send a receipt photo, forward a MoMo alert, "
+    "or snap your sales sheet — I'll sort it into your books."
+)
+FALLBACK_COPY = (
+    "Send a photo of a receipt, forward a MoMo/bank alert, "
+    "or snap your sales sheet — that's what I'm best at."
+)
+LIMIT_COPY = (
+    "That looks like money movement, but you're at the {limit}-entry "
+    "limit on the {plan} plan. Upgrade in the app to keep going."
+)
 
 
 # ── Account linking (called from the app) ──────────────────────────────
@@ -146,7 +115,7 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
 
     # Meta retries a webhook delivery if it doesn't get a fast 200 — a slow
     # Gemini call is enough to trigger a retry, which would otherwise log
-    # the same receipt 2-3 times. Claim the message_id BEFORE any
+    # the same entry 2-3 times. Claim the message_id BEFORE any
     # processing starts, so even an overlapping retry gets blocked
     # immediately rather than racing the first attempt.
     if message_id:
@@ -161,136 +130,141 @@ async def receive_webhook(request: Request, db: Session = Depends(get_db)):
     return {"status": "ok"}
 
 
+# ── Message handling (content-first) ────────────────────────────────────
+
+def _confirm_line(db: Session, entry) -> str:
+    amount = (
+        f"{entry.currency or ''} {float(entry.amount):,.2f}".strip()
+        if entry.amount is not None else "amount unclear"
+    )
+    cat = (
+        db.query(Category).filter(Category.id == entry.category_id).first()
+        if entry.category_id else None
+    )
+    cat_name = cat.name if cat else "uncategorised"
+    who = entry.party or "entry"
+    scope = " · shop" if entry.business_id else ""
+    review = " (needs a quick review — tap it in Money)" if entry.status == "needs_review" else ""
+    return f"✅ Logged: {who} — {amount} ({cat_name}){scope}{review}"
+
+
+def _prune_expired_drafts(db: Session, user: User) -> None:
+    db.query(WhatsAppPendingClarification).filter(
+        WhatsAppPendingClarification.user_id == user.id,
+        WhatsAppPendingClarification.expires_at <= datetime.utcnow(),
+    ).delete()
+    db.commit()
+
+
 def _handle_message(db: Session, sender: str, message: dict) -> None:
     msg_type = message.get("type")
     user = db.query(User).filter(User.whatsapp_number == sender).first()
-    kratte_account_id = None if user else _find_kratte_account(db, sender)
 
-    # --- linking flow: a 6-digit code sent as plain text ---
+    # --- linking: a 6-digit code as plain text (linked or not) ---
+    if msg_type == "text" and message["text"]["body"].strip().isdigit() \
+            and len(message["text"]["body"].strip()) == 6:
+        if not _try_link(db, sender, message["text"]["body"].strip()):
+            send_text(sender, "That code's wrong or expired — grab a fresh one from KuachaFlo → You → WhatsApp.")
+        return
+
+    if user is None:
+        if msg_type == "image":
+            send_text(sender, f"{LINK_COPY} Then send the photo again.")
+        else:
+            send_text(sender, LINK_COPY)
+        return
+
+    _prune_expired_drafts(db, user)
+
     if msg_type == "text":
-        text_body = message["text"]["body"].strip()
-        if text_body.isdigit() and len(text_body) == 6:
-            if not _try_link(db, sender, text_body) and not _try_link_kratte(db, sender, text_body):
-                send_text(
-                    sender,
-                    "That code's wrong or expired — grab a fresh one from "
-                    "KuachaFlo → Account → WhatsApp, or KraTte → Settings → WhatsApp.",
-                )
-            return
+        _handle_text(db, user, sender, message["text"]["body"])
+    elif msg_type == "image":
+        _handle_image(db, user, sender, message)
+    else:
+        send_text(sender, FALLBACK_COPY)
 
-        # --- forwarded MoMo/bank SMS: try to recognise it as a transaction
-        # before falling back to a generic reply. Most texts won't be one
-        # (chit-chat, questions) — that's expected, not an error.
-        if user is not None:
-            try:
-                result = process_momo_text(db, user, text_body)
-            except ReceiptLimitReached as e:
-                send_text(
-                    sender,
-                    f"That looks like a MoMo transaction, but you're at the "
-                    f"{e.limit}-receipt limit on the {e.plan} plan. Upgrade in the app to keep logging.",
-                )
-                return
-            except ReceiptOcrUnavailable:
-                result = None  # stay quiet rather than error on a message that might not even be a transaction
 
-            if result is not None:
-                r = result.receipt
-                amount = f"{r.currency or ''} {r.total_amount:,.2f}".strip() if r.total_amount else "amount unclear"
-                cat = result.matched_category_name or "uncategorised"
-                who = r.merchant or "transaction"
-                send_text(sender, f"✅ Logged: {who} — {amount} ({cat})\nView it anytime in KuachaFlo.")
-                return
-
-        if kratte_account_id:
-            send_text(sender, "Send a photo of your day's sales sheet and I'll log each item in KraTte.")
-            return
-
-        send_text(
-            sender,
-            "👋 Send a photo of a receipt, or forward a MoMo/bank transaction alert, and I'll log it in KuachaFlo."
-            if user else
-            "👋 To link this number, open KuachaFlo → Account → WhatsApp (or KraTte → Settings → WhatsApp), "
-            "grab your 6-digit code, and send it here.",
-        )
+def _handle_text(db: Session, user: User, sender: str, text_body: str) -> None:
+    text_body = (text_body or "").strip()
+    if not text_body:
         return
 
-    # --- a photo: receipt capture (KuachaFlo) or sales-sheet capture (KraTte) ---
-    if msg_type == "image":
-        if user is None and kratte_account_id is None:
-            send_text(
-                sender,
-                "This number isn't linked to a KuachaFlo or KraTte account yet. "
-                "Open either app → Account/Settings → WhatsApp to get a code, then send it here first.",
-            )
-            return
+    # A reply to our question takes precedence over re-classifying — but
+    # only when it doesn't look like a fresh transaction itself. The
+    # classifier is the judge: not_money + open draft = answer.
+    draft = get_open_draft(db, user)
+    lowered = text_body.strip().lower()
+    if draft is not None and lowered in ("cancel", "ignore", "stop"):
+        answer_draft(db, user, draft.id, text_body)
+        send_text(sender, "Ignored — nothing filed.")
+        return
 
-        image_bytes = download_media(message["image"]["id"])
-        if image_bytes is None:
-            send_text(sender, "⚠️ Couldn't download that image — try sending it again.")
-            return
+    try:
+        outcome = process_text(db, user, text_body, classify_text, sender=sender)
+    except EntryLimitReached as e:
+        send_text(sender, LIMIT_COPY.format(limit=e.limit, plan=e.plan))
+        return
+    except OcrUnavailable:
+        outcome = None  # stay quiet-ish — fall through to draft/fallback below
 
-        if kratte_account_id:
-            _handle_kratte_sales_photo(sender, kratte_account_id, image_bytes)
-            return
+    if outcome is not None and outcome.entry is not None:
+        send_text(sender, _confirm_line(db, outcome.entry))
+        return
+    if outcome is not None and outcome.draft_id is not None:
+        send_text(sender, outcome.question or "What was this for?")
+        return
+    if outcome is not None and outcome.needs_shop:
+        send_text(sender, outcome.message or "Start your shop to file sales sheets.")
+        return
 
+    # Not a transaction — maybe an answer to our open question?
+    if draft is not None:
         try:
-            result = process_receipt_image(db, user, image_bytes, source="whatsapp_photo")
-        except ReceiptLimitReached as e:
-            send_text(
-                sender,
-                f"You've hit the {e.limit}-receipt limit on the {e.plan} plan. "
-                f"Upgrade in the app to keep logging receipts here.",
-            )
+            answered = answer_draft(db, user, draft.id, text_body)
+        except LookupError:
+            send_text(sender, FALLBACK_COPY)
             return
-        except ReceiptTooLarge:
-            send_text(sender, "That image is too large (10MB max) — try a lower-res photo.")
-            return
-        except ReceiptUnreadable:
-            send_text(sender, "⚠️ Couldn't read that as an image — try sending it as a photo, not a document.")
-            return
-        except ReceiptOcrUnavailable:
-            send_text(sender, "⚠️ Receipt scanning is temporarily unavailable — try again shortly.")
-            return
-
-        r = result.receipt
-        amount = f"{r.currency or ''} {r.total_amount:,.2f}".strip() if r.total_amount else "amount unclear"
-        cat = result.matched_category_name or "uncategorised"
-        merchant = r.merchant or "receipt"
-        send_text(sender, f"✅ Logged: {merchant} — {amount} ({cat})\nView it anytime in KuachaFlo.")
+        if answered.entry is not None:
+            send_text(sender, _confirm_line(db, answered.entry))
+        elif answered.draft_id:
+            send_text(sender, answered.question or "Which category fits best?")
+        else:
+            send_text(sender, answered.message or "Noted.")
         return
 
-    # --- anything else (audio, documents, stickers…) ---
-    if user is not None:
-        send_text(sender, "Send a photo of a receipt and I'll log it — that's what I'm best at for now.")
-    elif kratte_account_id:
-        send_text(sender, "Send a photo of your day's sales sheet and I'll log each item — that's what I'm best at for now.")
+    send_text(sender, FALLBACK_COPY)
 
 
-def _handle_kratte_sales_photo(sender: str, kratte_account_id: str, image_bytes: bytes) -> None:
-    try:
-        items = extract_sales_sheet(image_bytes)
-    except GeminiNotConfigured:
-        send_text(sender, "⚠️ Sales-sheet scanning is temporarily unavailable — try again shortly.")
-        return
-
-    if not items:
-        send_text(sender, "I couldn't make out any items on that sheet — try a clearer or better-lit photo.")
+def _handle_image(db: Session, user: User, sender: str, message: dict) -> None:
+    image_bytes = download_media(message["image"]["id"])
+    if image_bytes is None:
+        send_text(sender, "⚠️ Couldn't download that image — try sending it again.")
         return
 
     try:
-        result = import_sales_sheet(sender, items)
-    except KratteImportFailed as e:
-        send_text(sender, f"⚠️ {e.message}")
+        outcome = process_image(
+            db, user, image_bytes, classify_image,
+            source="whatsapp_photo", sender=sender,
+        )
+    except EntryLimitReached as e:
+        send_text(sender, LIMIT_COPY.format(limit=e.limit, plan=e.plan))
+        return
+    except EntryTooLarge:
+        send_text(sender, "That image is too large (10MB max) — try a lower-res photo.")
+        return
+    except EntryUnreadable:
+        send_text(sender, "⚠️ Couldn't read that as an image — try sending it as a photo, not a document.")
+        return
+    except OcrUnavailable:
+        send_text(sender, "⚠️ Scanning is temporarily unavailable — try again shortly.")
         return
 
-    lines = [f"✅ Logged {result['itemCount']} item(s) as {result.get('saleName', 'a sale')}."]
-    if result.get("amount"):
-        lines.append(f"Total: {result['amount']:,.2f}")
-    if result.get("newProducts"):
-        names = ", ".join(result["newProducts"])
-        lines.append(f"New products added — check their cost price in KraTte: {names}")
-    send_text(sender, "\n".join(lines))
+    if outcome.entry is not None:
+        send_text(sender, _confirm_line(db, outcome.entry))
+    elif outcome.draft_id is not None:
+        send_text(sender, outcome.question or "What was this for?")
+    else:
+        send_text(sender, outcome.message or FALLBACK_COPY)
 
 
 def _try_link(db: Session, sender: str, code: str) -> bool:
@@ -311,5 +285,5 @@ def _try_link(db: Session, sender: str, code: str) -> bool:
     candidate.whatsapp_link_code_expires = None
     db.commit()
 
-    send_text(sender, "✅ Linked! Send a photo of any receipt and I'll log it in KuachaFlo.")
+    send_text(sender, WELCOME_COPY)
     return True

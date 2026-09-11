@@ -13,6 +13,8 @@ def test_receipts_list_shape_unchanged(client, db, user, seed_categories):
                    total_amount=50, currency="ZMW", purchase_date=date(2026, 9, 1),
                    status="processed"))
     db.commit()
+    from app.ledger_backfill import backfill_receipts  # what init_db does on boot
+    backfill_receipts(db)
     r = client.get("/api/v1/receipts")
     assert r.status_code == 200
     assert r.json()[0]["merchant"] == "Shoprite"

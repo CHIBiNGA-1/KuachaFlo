@@ -47,6 +47,22 @@ def init_db():
     finally:
         db.close()
 
+    # Backfill receipts → ledger (idempotent — reruns only copy new rows).
+    # Runs on boot so every environment heals itself without an operator
+    # remembering a script. Never crashes the boot: a mismatch is logged
+    # loudly and the shadow-diff job (Phase 8) keeps watch.
+    import logging as _logging
+    try:
+        from app.ledger_backfill import backfill_receipts, verify
+        db = SessionLocal()
+        try:
+            backfill_receipts(db)
+            verify(db)
+        finally:
+            db.close()
+    except Exception:
+        _logging.exception("ledger backfill/verify failed on boot — investigate, app still starting")
+
 
 def _ensure_columns() -> None:
     """Adds columns that create_all can't (it only creates missing TABLES,

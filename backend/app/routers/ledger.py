@@ -49,6 +49,7 @@ def _out(entry: LedgerEntry, cat: Category | None) -> LedgerEntryOut:
         currency=entry.currency,
         occurred_on=entry.occurred_on,
         category=_cat_nested(cat),
+        note=entry.note,
         source=entry.source,
         status=entry.status,
         confidence=entry.confidence,

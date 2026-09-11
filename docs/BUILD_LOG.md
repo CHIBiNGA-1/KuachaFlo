@@ -70,3 +70,39 @@ Migration map for existing rows: `accessories` → [personal]; `other` → all t
 
 **Assumptions locked:** kinds NULL = personal-only (legacy truth); manual entries confidence=high;
 business context without a shop = 422 "start your shop first"; order_ref resolves in Phase 3.
+
+## Phase 2 — One ingestion (DONE)
+
+**Shipped:**
+- `app/classify.py`: ONE classify+extract call (receipt|momo_transaction|sales_sheet|
+  supplier_note|not_money + direction/amount/currency/party/date/category/context_hint/
+  reference/line_items/confidence/needs_question). Pure payload builders + response parser
+  (golden-tested, no network); iron rule — structural doubt degrades to a QUESTION, never
+  to not_money. Only explicit not_money means "nothing to file."
+- `tests/test_classify_golden.py` (12): receipt/MoMo-thin/airtime/sales-sheet/chit-chat
+  goldens + adversarial (unknown kind, garbage amount/date, off-taxonomy category,
+  unusable envelope).
+- `app/memory.py` wired in: `ingestion._memory_boost` fills category/context gaps and floors
+  confidence to medium for known parties → second identical forward files silently.
+- `app/ingestion.py`: limit→storage→classify→commit/question/not-money; sales_sheet without
+  a shop returns needs_shop (no ghost shops); photo+dead-scanner still yields a fillable
+  needs_review row (never 500s); clarification protocol (2 attempts max, cancel kills,
+  expiry kills, answers write memory).
+- `app/routers/ingest.py`: POST photo/text (201 filed / 202 question / 200 nothing),
+  POST clarify (201 / 202 follow-up / 204 cancel), GET drafts. Injectable `get_classifier`.
+- `routers/receipts.py` repointed at the pipeline (ReceiptOut adapter; thin photos file as
+  needs_review for the old client). `init_db` auto-backfills receipts→ledger on every boot.
+- `routers/whatsapp.py` rewritten content-first: single 6-digit link path, classify-then-
+  file for text/images, clarification answers in-thread, confirm lines with category +
+  shop tag + review hint. ZERO `shop_users`/KraTte references.
+- Deleted `gemini_ocr.py`, `receipt_service.py`.
+- `CameraUpload.tsx` → /ingest/photo with inline question UI (answer/cancel), LedgerEntry
+  → ReceiptResult mapping for current screens. `tsc --noEmit` clean.
+
+**Verified:** 54 passed; only Phase 3 shop tests red (12). Golden 12/12. Boot + backfill
+idempotent. Live-Gemini behavior untested here by design (stubbed seam) — soak-test with
+real forwards before production cutover.
+
+**Handed to Phase 3:** `sales_sheet` entries land as business income with `line_items`
+preserved + needs_review ("stock sync arrives with the shop") — Phase 3 MUST sweep these
+into real orders with stock effects (sweep job + test) or income double-counts.
