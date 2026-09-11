@@ -14,6 +14,39 @@ class UserOut(BaseModel):
     whatsapp_number: Optional[str] = None
 
 
+class BusinessOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    currency: str
+    created_at: datetime
+
+
+class BusinessExpenseCreate(BaseModel):
+    party: str  # who was paid — kept generic since this is the shared
+    # ledger shape, not a receipts-only concept
+    amount: float
+    currency: Optional[str] = None
+    category: Optional[str] = None
+    date: Optional[date] = None
+    note: Optional[str] = None
+
+
+class BusinessLedgerEntryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    direction: str
+    merchant: Optional[str]
+    total_amount: Optional[float]
+    currency: str
+    purchase_date: Optional[date]
+    source: str
+    line_items: Optional[list] = None
+    created_at: datetime
+
+
 class ReceiptOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
