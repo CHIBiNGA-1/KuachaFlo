@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, date
 
 from sqlalchemy import (
-    Column, String, Numeric, Date, DateTime, Boolean, ForeignKey, Text, Integer
+    Column, String, Numeric, Date, DateTime, Boolean, ForeignKey, Text, Integer, JSON
 )
 from sqlalchemy.orm import relationship
 
@@ -73,7 +73,35 @@ class Receipt(Base):
     # image at all (they're built from forwarded SMS text, not a photo).
     source = Column(String, default="app")  # app | whatsapp_photo | whatsapp_momo_sms
 
+    # --- Ledger unification: this table is becoming the shared
+    # money-movement ledger for both personal and business entries, not
+    # just "receipts". Both columns are additive and default to today's
+    # meaning of every existing row: money going out, no business
+    # attached. Nothing reads these yet — this is the foundation, not
+    # the feature. ---
+    direction = Column(String, default="out", nullable=False)  # out | in
+    business_id = Column(String, ForeignKey("businesses.id"), nullable=True, index=True)
+    line_items = Column(JSON, nullable=True)  # multi-item entries (e.g. a sales-sheet photo)
+
     user = relationship("User", back_populates="receipts")
+
+
+class Business(Base):
+    """
+    A shop/business a user runs — the KraTte side of one identity. Kept
+    deliberately separate from the ledger: inventory, staff, customers,
+    and suppliers are business *resources*, not money movements, so they
+    don't belong in the same table as receipts/sales/purchases. A
+    business's ledger entries are the Receipt rows where business_id
+    points here.
+    """
+    __tablename__ = "businesses"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    owner_user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    name = Column(String, nullable=False, default="My Shop")
+    currency = Column(String, default="USD")
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class WhatsAppProcessedMessage(Base):
