@@ -1,11 +1,11 @@
-from datetime import date as date_type, datetime
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import User, Business, Receipt
+from app.models import User, Business, LedgerEntry
 from app.schemas import BusinessOut, BusinessExpenseCreate, BusinessLedgerEntryOut
 
 router = APIRouter(prefix="/api/v1/business", tags=["business"])
@@ -24,6 +24,22 @@ def _get_business(db: Session, user: User) -> Business:
     return business
 
 
+def _out(entry: LedgerEntry) -> BusinessLedgerEntryOut:
+    # Explicit mapping (not from_attributes): ledger field names differ
+    # from the legacy receipt shape this response preserves.
+    return BusinessLedgerEntryOut(
+        id=entry.id,
+        direction=entry.direction,
+        merchant=entry.party,
+        total_amount=float(entry.amount) if entry.amount is not None else None,
+        currency=entry.currency,
+        purchase_date=entry.occurred_on,
+        source=entry.source,
+        line_items=entry.line_items,
+        created_at=entry.created_at,
+    )
+
+
 @router.get("", response_model=BusinessOut)
 def get_my_business(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return _get_business(db, user)
@@ -35,31 +51,27 @@ def create_business_expense(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """
-    Proof-of-concept for the ledger unification: a business expense,
-    written into the exact same table a personal receipt lives in —
-    direction='out', business_id set, no image required (this is a
-    manual entry, not a photo capture; WhatsApp/photo capture into this
-    same shape is the next increment once this is proven solid).
-    """
+    """A business expense, written into the unified ledger — direction
+    'out', business_id set, no image (manual entry, not a photo)."""
     business = _get_business(db, user)
 
-    entry = Receipt(
+    entry = LedgerEntry(
         user_id=user.id,
         business_id=business.id,
         direction="out",
-        merchant=payload.party,
-        total_amount=payload.amount,
+        party=payload.party,
+        amount=payload.amount,
         currency=payload.currency or business.currency,
-        purchase_date=payload.date or datetime.utcnow().date(),
-        raw_ocr_text=payload.note,
+        occurred_on=payload.date or datetime.utcnow().date(),
+        note=payload.note,
         status="processed",
-        source="business_manual",
+        confidence="high",
+        source="shop_manual",
     )
     db.add(entry)
     db.commit()
     db.refresh(entry)
-    return entry
+    return _out(entry)
 
 
 @router.get("/expenses", response_model=list[BusinessLedgerEntryOut])
@@ -68,13 +80,14 @@ def list_business_expenses(
     user: User = Depends(get_current_user),
 ):
     business = _get_business(db, user)
-    return (
-        db.query(Receipt)
+    rows = (
+        db.query(LedgerEntry)
         .filter(
-            Receipt.business_id == business.id,
-            Receipt.direction == "out",
-            Receipt.is_deleted == False,  # noqa: E712
+            LedgerEntry.business_id == business.id,
+            LedgerEntry.direction == "out",
+            LedgerEntry.is_deleted == False,  # noqa: E712
         )
-        .order_by(Receipt.purchase_date.desc())
+        .order_by(LedgerEntry.occurred_on.desc())
         .all()
     )
+    return [_out(e) for e in rows]

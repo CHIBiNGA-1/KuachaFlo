@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict
 
 
@@ -14,20 +14,63 @@ class UserOut(BaseModel):
     whatsapp_number: Optional[str] = None
 
 
-class LedgerEntryOut(BaseModel):
+class CategoryNested(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
+    name: str
+    slug: str
+    icon: Optional[str] = None
+
+
+class LedgerEntryOut(BaseModel):
+    id: str
     context: str  # "personal" | "business" — derived, not stored
     direction: str
-    merchant: Optional[str]
-    total_amount: Optional[float]
+    party: Optional[str]
+    amount: Optional[float]
     currency: str
-    purchase_date: Optional[date]
-    category_id: Optional[str] = None
+    occurred_on: Optional[date]
+    category: Optional[CategoryNested] = None
     source: str
+    status: str
+    confidence: Optional[str] = None
+    image_path: Optional[str] = None
+    thumbnail_path: Optional[str] = None
     line_items: Optional[list] = None
+    order_ref: Optional[str] = None  # resolved once Phase 3 owns orders
+    business_id: Optional[str] = None
     created_at: datetime
+
+
+class LedgerPage(BaseModel):
+    items: list[LedgerEntryOut]
+    next_cursor: Optional[str] = None
+
+
+class LedgerCreate(BaseModel):
+    party: str  # min length enforced below (non-blank)
+    amount: float
+    direction: Literal["in", "out"] = "out"
+    context: Literal["personal", "business"] = "personal"
+    currency: Optional[str] = None  # defaults to the user's currency
+    occurred_on: Optional[date] = None  # defaults to today
+    category_id: Optional[str] = None  # must exist if given
+    note: Optional[str] = None
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+
+class LedgerUpdate(BaseModel):
+    party: Optional[str] = None
+    amount: Optional[float] = None
+    direction: Optional[Literal["in", "out"]] = None
+    occurred_on: Optional[date] = None
+    category_id: Optional[str] = None
+    note: Optional[str] = None
+    context: Optional[Literal["personal", "business"]] = None
+
+    model_config = ConfigDict(str_strip_whitespace=True)
 
 
 class BusinessOut(BaseModel):

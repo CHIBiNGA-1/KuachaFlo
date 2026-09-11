@@ -43,6 +43,12 @@ class Category(Base):
     icon = Column(String, nullable=True)
     is_default = Column(Boolean, default=True)
 
+    # Which worlds this category is valid in — the classifier's enum and
+    # the context-flip remap both filter on this. Any subset of
+    # ["personal", "shop", "expense"]. See docs/BUILD_LOG.md (frozen v1
+    # taxonomy); the seed in app.database is the source of truth.
+    kinds = Column(JSON, nullable=True)
+
 
 class Receipt(Base):
     __tablename__ = "receipts"
@@ -86,13 +92,103 @@ class Receipt(Base):
     user = relationship("User", back_populates="receipts")
 
 
+class LedgerEntry(Base):
+    """
+    THE spine: every money movement in the unified product is one row
+    here — a photographed receipt, a forwarded MoMo alert, a shop sale's
+    income side, a purchase's spend side, a manual entry. Context is
+    DERIVED (business_id null → personal), never stored twice.
+
+    Receipt rows are backfilled into this table (see app/ledger_backfill)
+    and the receipts table lives on only as a shadow during migration.
+    """
+    __tablename__ = "ledger_entries"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    business_id = Column(String, ForeignKey("businesses.id"), nullable=True, index=True)
+
+    direction = Column(String, nullable=False, default="out")  # out | in
+    amount = Column(Numeric(12, 2), nullable=True)
+    currency = Column(String, default="ZMW")
+
+    party = Column(String, nullable=True)  # merchant / counterparty / customer
+    category_id = Column(String, ForeignKey("categories.id"), nullable=True)
+    occurred_on = Column(Date, nullable=True, index=True)
+    note = Column(Text, nullable=True)
+
+    # app_manual | app_photo | whatsapp_photo | whatsapp_momo_text |
+    # whatsapp_momo_image | sales_sheet | shop_manual | shop_order |
+    # shop_import | legacy_receipt
+    source = Column(String, default="app_manual")
+
+    image_path = Column(String, nullable=True)
+    thumbnail_path = Column(String, nullable=True)
+
+    # Full model output for audit/debug — never shown raw to users.
+    raw_extraction = Column(JSON, nullable=True)
+
+    status = Column(String, default="processed")  # processed | needs_review
+    confidence = Column(String, nullable=True)     # high | medium | low
+
+    # Set when this entry IS a sale/purchase's money side. Plain string
+    # until Phase 3 creates the orders table — then it becomes a real FK.
+    order_id = Column(String, nullable=True, index=True)
+    line_items = Column(JSON, nullable=True)
+
+    # Which learned rule filed this (for "why filed here" explanations).
+    memory_id = Column(String, ForeignKey("memories.id"), nullable=True)
+
+    is_deleted = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Memory(Base):
+    """
+    The nerves: what the product learned from corrections and answered
+    questions. Keyed per user: "merchant:<normalized>" for named parties,
+    "counterparty:<normalized>" for phone-like ones. Ingestion consults
+    this before asking the user anything — a hit means file silently.
+    """
+    __tablename__ = "memories"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    key = Column(String, nullable=False, index=True)
+    category_id = Column(String, ForeignKey("categories.id"), nullable=True)
+    context = Column(String, nullable=True)  # personal | business
+    party_display = Column(String, nullable=True)
+    hits = Column(Integer, default=1)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class WhatsAppPendingClarification(Base):
+    """
+    A thin input's draft, waiting on one question's answer. Drafts NEVER
+    become entries on their own — they commit on reply, die on cancel, or
+    expire silently. No ghost money, ever.
+    """
+    __tablename__ = "whatsapp_pending_clarifications"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    chat_sender = Column(String, nullable=True)  # WhatsApp number, or "app" for in-app drafts
+    draft_entry = Column(JSON, nullable=False)
+    question = Column(String, nullable=False)
+    attempts = Column(Integer, default=0)
+    expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Business(Base):
     """
     A shop/business a user runs — the KraTte side of one identity. Kept
     deliberately separate from the ledger: inventory, staff, customers,
     and suppliers are business *resources*, not money movements, so they
     don't belong in the same table as receipts/sales/purchases. A
-    business's ledger entries are the Receipt rows where business_id
+    business's ledger entries are the LedgerEntry rows where business_id
     points here.
     """
     __tablename__ = "businesses"
@@ -152,6 +248,9 @@ class Report(Base):
 
     id = Column(String, primary_key=True, default=gen_id)
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    # Combined is the hero (the thing no fragmented tool can produce).
+    scope = Column(String, default="personal")  # combined | personal | business
+    business_id = Column(String, ForeignKey("businesses.id"), nullable=True, index=True)
     period_start = Column(Date, nullable=True)
     period_end = Column(Date, nullable=True)
     pdf_path = Column(String, nullable=False)  # filesystem path, not web-servable
