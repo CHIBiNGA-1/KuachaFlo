@@ -3,11 +3,33 @@
 @tailwind utilities;
 
 :root {
-  --ink: #15191a;
   --bg: #f4f3ee;
+  --surface: #fbfbf8;
+  --surface-2: #eeeee9;
+  --surface-3: #e6e6df;
+  --ink: #15191a;
   --muted: #707879;
+  --faint: #9aa1a0;
   --line: #dedfd8;
-  --accent: #d7f26d;
+  --accent: #d9ef67;
+  --accent-ink: #243000;
+  --accent-2: #bdd46b;
+  --danger: #f6d1cc;
+  --danger-ink: #6a1b1b;
+  --success: #dcefd7;
+  --success-ink: #1e5c2e;
+  --warning: #f6e5b8;
+  --shadow: 0 18px 50px rgba(18, 25, 26, 0.07);
+  --shadow-soft: 0 8px 24px rgba(18, 25, 26, 0.055);
+  --radius-xl: 28px;
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+  --motion: 180ms;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 html,
@@ -16,4 +38,116 @@ body {
   color: var(--ink);
   font-family:
     -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Ambient warmth behind the whole app — subtle, not a gradient poster */
+body {
+  background-image: radial-gradient(
+    ellipse 70% 50% at 50% -10%,
+    rgba(217, 239, 103, 0.16),
+    transparent
+  );
+  background-attachment: fixed;
+}
+
+/* Glass surface — the one considered touch, used sparingly: chrome and
+   cards, never dense data. */
+.glass {
+  background: rgba(251, 251, 248, 0.78);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+  backdrop-filter: blur(18px) saturate(170%);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-soft);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 13.5px;
+  border-radius: var(--radius-sm);
+  padding: 12px 18px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition:
+    background var(--motion) cubic-bezier(0.22, 1, 0.36, 1),
+    border-color var(--motion) cubic-bezier(0.22, 1, 0.36, 1),
+    transform var(--motion) cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow var(--motion) cubic-bezier(0.22, 1, 0.36, 1);
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn.primary {
+  background: var(--ink);
+  color: #fff;
+  box-shadow: var(--shadow-soft);
+}
+.btn.primary:hover:not(:disabled) {
+  background: #000;
+}
+.btn.secondary {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--ink);
+}
+.btn.secondary:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+.btn.ghost {
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  text-decoration: underline;
+  padding: 4px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+}
+
+.field {
+  width: 100%;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 12px 14px;
+  font-size: 14px;
+  color: var(--ink);
+  transition: border-color var(--motion) ease;
+}
+.field:focus {
+  outline: none;
+  border-color: var(--ink);
+}
+.field::placeholder {
+  color: var(--faint);
+}
+
+.logo-mark {
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--ink);
+  color: var(--accent);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.kicker {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
 }

@@ -45,26 +45,23 @@ export function ServiceHome({
   onSignOut: () => void;
 }) {
   return (
-    <div className="min-h-screen px-6 py-8">
-      <div className="mx-auto max-w-2xl">
-        <div className="mb-8 flex items-center justify-between">
+    <div className="min-h-screen">
+      <div className="glass sticky top-0 z-10 border-b" style={{ borderColor: "var(--line)" }}>
+        <div className="mx-auto flex max-w-2xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <div
-              className="grid h-10 w-10 place-items-center rounded-xl text-sm font-black"
-              style={{ background: "var(--ink)", color: "var(--accent)" }}
-            >
-              KF
-            </div>
+            <div className="logo-mark h-10 w-10 text-sm">KF</div>
             <div>
-              <div className="text-sm font-black">{choice === "personal" ? "Personal" : "Shop"}</div>
-              <div className="text-xs text-muted">{email}</div>
+              <div className="text-sm font-black leading-tight">{choice === "personal" ? "Personal" : "Shop"}</div>
+              <div className="text-[11px]" style={{ color: "var(--muted)" }}>{email}</div>
             </div>
           </div>
-          <button onClick={onSignOut} className="text-xs font-bold text-muted underline">
+          <button onClick={onSignOut} className="btn ghost">
             Sign out
           </button>
         </div>
+      </div>
 
+      <div className="mx-auto max-w-2xl px-6 py-8">
         {choice === "personal" ? <PersonalView /> : <ShopView />}
       </div>
     </div>
@@ -118,34 +115,41 @@ function PersonalView() {
 
   return (
     <div>
-      <div className="mb-6 rounded-2xl border p-6" style={{ borderColor: "var(--line)" }}>
-        <div className="mb-1 text-xs font-bold uppercase text-muted">Total tracked</div>
-        <div className="text-3xl font-black">
+      <div className="card mb-6 p-7" style={{ background: "var(--ink)", color: "#fff", border: "none" }}>
+        <div className="kicker mb-2" style={{ color: "rgba(255,255,255,.55)" }}>Total tracked</div>
+        <div className="text-4xl font-black tracking-tight" style={{ color: "var(--accent)" }}>
           {receipts[0]?.currency || "ZMW"} {total.toFixed(2)}
+        </div>
+        <div className="mt-1 text-xs" style={{ color: "rgba(255,255,255,.5)" }}>
+          {receipts.length} receipt{receipts.length === 1 ? "" : "s"} scanned
         </div>
       </div>
 
       <label
-        className="mb-6 block cursor-pointer rounded-2xl border-2 border-dashed p-6 text-center text-sm font-bold"
-        style={{ borderColor: "var(--line)" }}
+        className="card mb-7 flex cursor-pointer flex-col items-center gap-2 border-dashed p-8 text-center transition-colors hover:border-current"
+        style={{ borderStyle: "dashed", borderWidth: 2, borderColor: "var(--line)" }}
       >
-        {uploading ? "Uploading…" : "📷 Snap or choose a receipt"}
+        <div className="text-2xl">{uploading ? "…" : "📷"}</div>
+        <div className="text-sm font-bold">{uploading ? "Uploading…" : "Snap or choose a receipt"}</div>
+        <div className="text-xs" style={{ color: "var(--muted)" }}>Camera or photo library</div>
         <input type="file" accept="image/*" hidden disabled={uploading} onChange={(e) => handleFile(e.target.files)} />
       </label>
 
-      {error && <p className="mb-4 text-xs font-bold text-red-600">{error}</p>}
+      {error && (
+        <p className="mb-4 rounded-lg px-3 py-2 text-xs font-bold" style={{ background: "var(--danger)", color: "var(--danger-ink)" }}>
+          {error}
+        </p>
+      )}
 
-      <div className="flex flex-col gap-2">
-        {receipts.length === 0 && <p className="text-center text-sm text-muted">No receipts yet.</p>}
+      <div className="flex flex-col gap-2.5">
+        {receipts.length === 0 && (
+          <p className="py-6 text-center text-sm" style={{ color: "var(--muted)" }}>No receipts yet.</p>
+        )}
         {receipts.map((r) => (
-          <div
-            key={r.id}
-            className="flex items-center justify-between rounded-xl border p-4"
-            style={{ borderColor: "var(--line)" }}
-          >
+          <div key={r.id} className="card flex items-center justify-between p-4">
             <div>
               <div className="text-sm font-bold">{r.merchant || "Unknown merchant"}</div>
-              <div className="text-xs text-muted">
+              <div className="text-xs" style={{ color: "var(--muted)" }}>
                 {r.category || "Uncategorised"} · {r.purchase_date}
               </div>
             </div>
@@ -217,70 +221,70 @@ function ShopView() {
     }
   }
 
+  const totalSales = sales.reduce((sum, s) => sum + s.total, 0);
+
   return (
     <div>
-      <form
-        onSubmit={addProduct}
-        className="mb-6 flex flex-col gap-2 rounded-2xl border p-4 sm:flex-row"
-        style={{ borderColor: "var(--line)" }}
-      >
+      <div className="card mb-6 p-7" style={{ background: "var(--ink)", color: "#fff", border: "none" }}>
+        <div className="kicker mb-2" style={{ color: "rgba(255,255,255,.55)" }}>Total sales</div>
+        <div className="text-4xl font-black tracking-tight" style={{ color: "var(--accent)" }}>
+          K{totalSales.toFixed(2)}
+        </div>
+        <div className="mt-1 text-xs" style={{ color: "rgba(255,255,255,.5)" }}>
+          {products.length} product{products.length === 1 ? "" : "s"} · {sales.length} sale{sales.length === 1 ? "" : "s"}
+        </div>
+      </div>
+
+      <form onSubmit={addProduct} className="card mb-7 flex flex-col gap-2.5 p-5 sm:flex-row">
         <input
           placeholder="Product name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
-          className="flex-1 rounded-lg border px-3 py-2 text-sm"
-          style={{ borderColor: "var(--line)" }}
+          className="field flex-1"
         />
         <input
           placeholder="Price"
           type="number"
           value={price}
           onChange={(e) => setPrice(e.target.value)}
-          className="w-24 rounded-lg border px-3 py-2 text-sm"
-          style={{ borderColor: "var(--line)" }}
+          className="field sm:w-24"
         />
         <input
           placeholder="Stock"
           type="number"
           value={stock}
           onChange={(e) => setStock(e.target.value)}
-          className="w-24 rounded-lg border px-3 py-2 text-sm"
-          style={{ borderColor: "var(--line)" }}
+          className="field sm:w-24"
         />
-        <button
-          type="submit"
-          disabled={busy}
-          className="rounded-lg px-4 py-2 text-sm font-bold text-white"
-          style={{ background: "var(--ink)" }}
-        >
+        <button type="submit" disabled={busy} className="btn primary">
           Add
         </button>
       </form>
 
-      {error && <p className="mb-4 text-xs font-bold text-red-600">{error}</p>}
+      {error && (
+        <p className="mb-4 rounded-lg px-3 py-2 text-xs font-bold" style={{ background: "var(--danger)", color: "var(--danger-ink)" }}>
+          {error}
+        </p>
+      )}
 
       <div className="mb-8">
-        <h2 className="mb-2 text-xs font-bold uppercase text-muted">Inventory</h2>
-        <div className="flex flex-col gap-2">
-          {products.length === 0 && <p className="text-sm text-muted">No products yet.</p>}
+        <div className="kicker mb-3">Inventory</div>
+        <div className="flex flex-col gap-2.5">
+          {products.length === 0 && <p className="text-sm" style={{ color: "var(--muted)" }}>No products yet.</p>}
           {products.map((p) => (
-            <div
-              key={p.id}
-              className="flex items-center justify-between rounded-xl border p-4"
-              style={{ borderColor: "var(--line)" }}
-            >
+            <div key={p.id} className="card flex items-center justify-between p-4">
               <div>
                 <div className="text-sm font-bold">{p.name}</div>
-                <div className="text-xs text-muted">
+                <div className="text-xs" style={{ color: "var(--muted)" }}>
                   {p.stock} in stock · K{p.price}
                 </div>
               </div>
               <button
                 onClick={() => sell(p.id)}
                 disabled={p.stock < 1}
-                className="rounded-lg border px-3 py-1.5 text-xs font-bold disabled:opacity-40"
-                style={{ borderColor: "var(--line)" }}
+                className="btn secondary"
+                style={{ padding: "8px 14px", fontSize: 12 }}
               >
                 Sell 1
               </button>
@@ -290,15 +294,11 @@ function ShopView() {
       </div>
 
       <div>
-        <h2 className="mb-2 text-xs font-bold uppercase text-muted">Recent sales</h2>
-        <div className="flex flex-col gap-2">
-          {sales.length === 0 && <p className="text-sm text-muted">No sales yet.</p>}
+        <div className="kicker mb-3">Recent sales</div>
+        <div className="flex flex-col gap-2.5">
+          {sales.length === 0 && <p className="text-sm" style={{ color: "var(--muted)" }}>No sales yet.</p>}
           {sales.map((s) => (
-            <div
-              key={s.id}
-              className="flex items-center justify-between rounded-xl border p-4"
-              style={{ borderColor: "var(--line)" }}
-            >
+            <div key={s.id} className="card flex items-center justify-between p-4">
               <div className="text-sm font-bold">
                 {s.quantity}× {s.product_name}
               </div>

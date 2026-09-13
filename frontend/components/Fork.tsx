@@ -28,9 +28,6 @@ export function Fork({
 
     setBusy(false);
     if (error) {
-      // The RLS lock (service_choice must be null to update) rejects this
-      // as a Postgres error if a choice was somehow already made — that's
-      // the "never comes back" rule holding, not a bug to work around.
       setError("That choice couldn't be saved — it may already be locked in.");
       return;
     }
@@ -39,30 +36,30 @@ export function Fork({
 
   if (pending) {
     return (
-      <div className="grid min-h-screen place-items-center px-6 text-center">
-        <div className="w-full max-w-sm">
-          <h2 className="mb-2 text-xl font-black">This is permanent</h2>
-          <p className="mb-8 text-sm text-muted">
-            You're choosing <strong className="text-ink">{pending === "personal" ? "Personal" : "Shop"}</strong>.
-            This can never be changed for this account.
-          </p>
-          {error && <p className="mb-4 text-xs font-bold text-red-600">{error}</p>}
-          <div className="flex gap-3">
-            <button
-              onClick={() => setPending(null)}
-              className="flex-1 rounded-xl border py-3 text-sm font-bold"
-              style={{ borderColor: "var(--line)" }}
-            >
-              Go back
-            </button>
-            <button
-              onClick={confirm}
-              disabled={busy}
-              className="flex-1 rounded-xl py-3 text-sm font-bold text-white disabled:opacity-50"
-              style={{ background: "var(--ink)" }}
-            >
-              {busy ? "…" : "Lock it in"}
-            </button>
+      <div className="grid min-h-screen place-items-center px-6 py-12">
+        <div className="w-full max-w-sm text-center">
+          <div className="card glass p-8">
+            <div className="kicker mb-3">This is permanent</div>
+            <h2 className="mb-3 text-2xl font-black tracking-tight">
+              {pending === "personal" ? "Personal" : "Shop"}, forever
+            </h2>
+            <p className="mb-7 text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
+              This account can never switch paths after this. If you&apos;re not
+              sure, go back — there&apos;s no rush.
+            </p>
+            {error && (
+              <p className="mb-4 rounded-lg px-3 py-2 text-xs font-bold" style={{ background: "var(--danger)", color: "var(--danger-ink)" }}>
+                {error}
+              </p>
+            )}
+            <div className="flex gap-3">
+              <button onClick={() => setPending(null)} className="btn secondary flex-1">
+                Go back
+              </button>
+              <button onClick={confirm} disabled={busy} className="btn primary flex-1">
+                {busy ? "…" : "Lock it in"}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -70,30 +67,50 @@ export function Fork({
   }
 
   return (
-    <div className="grid min-h-screen place-items-center px-6">
-      <div className="w-full max-w-md text-center">
-        <h1 className="mb-2 text-2xl font-black tracking-tight">Pick your path</h1>
-        <p className="mb-8 text-sm text-muted">
-          One account, one path — choose once, it's permanent.
-        </p>
+    <div className="grid min-h-screen place-items-center px-6 py-12">
+      <div className="w-full max-w-lg">
+        <div className="mb-9 text-center">
+          <div className="logo-mark mx-auto mb-5 h-12 w-12 text-lg">KF</div>
+          <h1 className="mb-2 text-[26px] font-black tracking-tight">Pick your path</h1>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>
+            One account, one path — choose once, it&apos;s permanent.
+          </p>
+        </div>
+
         <div className="grid gap-4 sm:grid-cols-2">
-          {(["personal", "shop"] as const).map((choice) => (
+          {(
+            [
+              { id: "personal" as const, title: "Personal", blurb: "Track your own spending and receipts.", icon: "🧾" },
+              { id: "shop" as const, title: "Shop", blurb: "Run inventory, sales, and a shop.", icon: "🏪" },
+            ]
+          ).map((opt) => (
             <button
-              key={choice}
-              onClick={() => setPending(choice)}
-              className="rounded-2xl border p-6 text-left transition hover:shadow-md"
-              style={{ borderColor: "var(--line)" }}
+              key={opt.id}
+              onClick={() => setPending(opt.id)}
+              className="card group p-6 text-left transition-all hover:-translate-y-0.5"
+              style={{ boxShadow: "var(--shadow-soft)" }}
             >
-              <div className="mb-1 text-lg font-black">{choice === "personal" ? "Personal" : "Shop"}</div>
-              <div className="text-xs text-muted">
-                {choice === "personal"
-                  ? "Track your own spending and receipts."
-                  : "Run inventory, sales, and a shop."}
+              <div
+                className="mb-4 grid h-11 w-11 place-items-center rounded-xl text-lg"
+                style={{ background: "var(--surface-2)" }}
+              >
+                {opt.icon}
+              </div>
+              <div className="mb-1 text-lg font-black tracking-tight">{opt.title}</div>
+              <div className="text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+                {opt.blurb}
+              </div>
+              <div
+                className="mt-4 text-xs font-bold opacity-0 transition-opacity group-hover:opacity-100"
+                style={{ color: "var(--accent-ink)" }}
+              >
+                Choose {opt.title} →
               </div>
             </button>
           ))}
         </div>
-        <button onClick={onSignOut} className="mt-8 text-xs font-bold text-muted underline">
+
+        <button onClick={onSignOut} className="btn ghost mx-auto mt-9 block">
           Sign out
         </button>
       </div>
