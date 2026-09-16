@@ -1,50 +1,50 @@
-import time
-import logging
+"""Supabase JWT verification via JWKS — ported from the archived engine.
 
-import httpx
+The frontend signs in with Supabase Auth and sends the access token as a
+Bearer token; we verify the signature against Supabase's JWKS and read
+the user id (sub) out of it. No service key involved.
+"""
+
 import jwt
 from jwt import PyJWKClient
-from fastapi import Header, HTTPException
 
 from app.config import settings
 
-_jwk_client: PyJWKClient | None = None
-_jwk_client_created_at: float = 0.0
-_JWK_CLIENT_TTL = 3600
+_jwks_client: PyJWKClient | None = None
 
 
-def _get_jwk_client() -> PyJWKClient:
-    global _jwk_client, _jwk_client_created_at
-    now = time.time()
-    if _jwk_client is None or (now - _jwk_client_created_at) > _JWK_CLIENT_TTL:
-        _jwk_client = PyJWKClient(settings.supabase_jwks_url)
-        _jwk_client_created_at = now
-    return _jwk_client
+class AuthError(Exception):
+    pass
+
+
+def _jwks_url() -> str:
+    if settings.supabase_jwks_url:
+        return settings.supabase_jwks_url
+    if settings.supabase_url:
+        return f"{settings.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
+    raise AuthError("Supabase is not configured on the server.")
+
+
+def _client() -> PyJWKClient:
+    global _jwks_client
+    if _jwks_client is None:
+        _jwks_client = PyJWKClient(_jwks_url())
+    return _jwks_client
 
 
 def verify_token(token: str) -> dict:
-    """Verifies a Supabase-issued access token and returns its claims."""
+    """Returns {"id": user_id, "email": ...} or raises AuthError."""
     try:
-        signing_key = _get_jwk_client().get_signing_key_from_jwt(token)
-        claims = jwt.decode(
+        key = _client().get_signing_key_from_jwt(token).key
+        payload = jwt.decode(
             token,
-            signing_key.key,
+            key,
             algorithms=["ES256", "RS256"],
             audience="authenticated",
-            options={"verify_exp": True},
+            options={"require": ["sub", "exp"]},
         )
-        return claims
+    except AuthError:
+        raise
     except Exception as e:
-        logging.warning(f"Token verification failed: {e}")
-        raise HTTPException(401, "Invalid or expired session")
-
-
-def get_current_user_id(authorization: str | None = Header(default=None)) -> str:
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(401, "Missing bearer token")
-    token = authorization.removeprefix("Bearer ").strip()
-    claims = verify_token(token)
-    user_id = claims.get("sub")
-    if not user_id:
-        raise HTTPException(401, "Token has no subject")
-    return user_id
+        raise AuthError(f"Invalid token: {e}")
+    return {"id": payload["sub"], "email": payload.get("email")}

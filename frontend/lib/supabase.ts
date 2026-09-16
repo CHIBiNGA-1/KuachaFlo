@@ -9,10 +9,8 @@ export const supabaseConfigured = Boolean(url && key);
 export const supabase: SupabaseClient | null =
   supabaseConfigured ? createClient(url!, key!) : null;
 
-export type ServiceChoice = "personal" | "shop";
-
 export type Profile = {
   id: string;
-  service_choice: ServiceChoice | null;
-  chosen_at: string | null;
+  email: string | null;
+  plan: "free" | "pro" | "business";
 };

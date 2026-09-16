@@ -1,15 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
-import { supabase, type Profile, type ServiceChoice } from "@/lib/supabase";
-import { Welcome } from "@/components/Welcome";
-import { Fork } from "@/components/Fork";
-import { ServiceHome } from "@/components/ServiceHome";
+import { supabase, supabaseConfigured } from "@/lib/supabase";
+import { applyTheme } from "@/lib/theme";
+import { ShopShell } from "@/components/shop/Shell";
 
 export default function Home() {
+  const router = useRouter();
   const [session, setSession] = useState<Session | null | undefined>(undefined);
-  const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
 
   const refreshSession = useCallback(async () => {
     if (!supabase) {
@@ -21,6 +21,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    applyTheme();
     refreshSession();
     if (!supabase) return;
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
@@ -28,66 +29,44 @@ export default function Home() {
   }, [refreshSession]);
 
   useEffect(() => {
-    if (!session?.user || !supabase) {
-      if (session === null) setProfile(null);
-      return;
-    }
-    setProfile(undefined);
-    supabase
-      .from("profiles")
-      .select("id, service_choice, chosen_at")
-      .eq("id", session.user.id)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (error) {
-          console.error(error);
-          setProfile(null);
-          return;
-        }
-        setProfile(data as Profile | null);
-      });
-  }, [session]);
+    if (session === null) router.replace("/login");
+  }, [session, router]);
 
-  // The one real sign-out path — always clears the actual Supabase
-  // session, not just local UI state. Both Fork and ServiceHome call
-  // this same function, so there's no route through the app that looks
-  // signed out while a valid session cookie is still sitting there.
-  async function signOut() {
-    await supabase?.auth.signOut();
-    setSession(null);
-    setProfile(null);
-  }
-
-  if (session === undefined || (session && profile === undefined)) {
+  if (!supabaseConfigured) {
     return (
-      <div className="grid min-h-screen place-items-center">
-        <div
-          className="grid h-14 w-14 animate-pulse place-items-center rounded-2xl text-xl font-black"
-          style={{ background: "var(--ink)", color: "var(--accent)" }}
-        >
-          KF
+      <div className="grid min-h-screen place-items-center bg-paper p-6 text-center">
+        <div className="card max-w-sm p-8">
+          <div className="font-display text-xl">Not configured yet</div>
+          <p className="mt-2 text-[13px] text-muted">
+            Set <code className="text-ink">NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
+            <code className="text-ink">NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</code> in{" "}
+            <code className="text-ink">.env.local</code>, then restart the dev server.
+          </p>
         </div>
       </div>
     );
   }
 
-  if (!session) {
-    return <Welcome onAuthed={refreshSession} />;
-  }
-
-  const choice = profile?.service_choice as ServiceChoice | null | undefined;
-
-  if (!choice) {
+  if (session === undefined || session === null) {
     return (
-      <Fork
-        userId={session.user.id}
-        onLocked={(c) =>
-          setProfile({ id: session.user.id, service_choice: c, chosen_at: new Date().toISOString() })
-        }
-        onSignOut={signOut}
-      />
+      <div className="grid min-h-screen place-items-center bg-paper">
+        <div className="flex flex-col items-center gap-3">
+          <div
+            className="grid h-14 w-14 animate-pulse place-items-center rounded-2xl font-display text-xl"
+            style={{ background: "var(--accent)", color: "#fff" }}
+          >
+            K
+          </div>
+          <div className="animate-pulse text-[12px] font-bold text-muted">Opening…</div>
+        </div>
+      </div>
     );
   }
 
-  return <ServiceHome choice={choice} email={session.user.email ?? ""} onSignOut={signOut} />;
+  return (
+    <ShopShell
+      email={session.user.email ?? ""}
+      onSignOut={() => setSession(null)}
+    />
+  );
 }

@@ -1,0 +1,1036 @@
+/* ── The shelf ─────────────────────────────────────────────────────────
+   Image-led inventory that still carries the numbers a shop owner
+   actually acts on. Everything here reads from the theme variables in
+   globals.css, so the board re-skins with the rest of the app. */
+
+.shelf {
+  --pin-gap: 20px;
+  min-width: 0;
+}
+
+/* Snapshot strip — inventory health, not money. */
+.shelf-snapshot {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.shelf-snapshot > button,
+.shelf-snapshot > div {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 14px 16px;
+  border-right: 1px solid var(--line);
+  text-align: left;
+  min-width: 0;
+  background: none;
+  transition: background-color 0.18s ease;
+}
+
+.shelf-snapshot > *:last-child {
+  border-right: 0;
+}
+
+.shelf-snapshot > button:hover {
+  background: var(--surface-2);
+}
+
+.snap-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  background: var(--accent-wash);
+  color: var(--accent-deep);
+}
+
+.snap-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.snap-text > strong {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+
+.snap-text > small {
+  font-size: 10.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Tab row */
+.shelf-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 22px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.shelf-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.shelf-tabs > button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  padding: 12px 1px 14px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: color 0.18s ease, border-color 0.18s ease;
+}
+
+.shelf-tabs > button:hover {
+  color: var(--ink);
+}
+
+.shelf-tabs > button.active {
+  color: var(--accent-deep);
+  border-bottom-color: var(--accent);
+  font-weight: 650;
+}
+
+.shelf-tabs > button > span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 9.5px;
+  font-weight: 700;
+  border-radius: 5px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.shelf-tabs > button.active > span {
+  background: var(--accent-wash);
+  color: var(--accent-deep);
+}
+
+.shelf-tabs > button > span.warn {
+  background: var(--accent-wash);
+  color: var(--accent-deep);
+}
+
+/* Toolbar */
+.shelf-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 38px;
+  flex: 1;
+  min-width: 170px;
+  max-width: 420px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 0 14px;
+  color: var(--muted);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.shelf-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-wash);
+}
+
+.shelf-search > input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: none;
+  font-size: 12.5px;
+  color: var(--ink);
+}
+
+.shelf-search > input::placeholder {
+  color: var(--muted);
+}
+
+.shelf-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+
+.shelf-tool:hover {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+
+.shelf-tool.active {
+  background: var(--accent-wash);
+  border-color: var(--accent);
+  color: var(--accent-deep);
+}
+
+.shelf-tool > select {
+  border: 0;
+  outline: 0;
+  background: none;
+  color: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.shelf-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.shelf-switch > button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 27px;
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.shelf-switch > button.active {
+  background: var(--surface);
+  color: var(--accent-deep);
+  box-shadow: var(--shadow-card);
+}
+
+/* Category chips */
+.shelf-chips {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 1px 0;
+}
+
+.shelf-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.shelf-chips > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  padding: 6px 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+
+.shelf-chips > button:hover {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+
+.shelf-chips > button.active {
+  background: var(--accent-wash);
+  border-color: var(--accent);
+  color: var(--accent-deep);
+}
+
+.shelf-chips > button > i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Selection bar */
+.shelf-selection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 11px 15px;
+  border: 1px solid var(--accent);
+  background: var(--accent-wash);
+  border-radius: 12px;
+  color: var(--accent-deep);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.shelf-selection button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--accent-deep);
+}
+
+.shelf-selection button:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ── Masonry board ─────────────────────────────────────────────────── */
+
+.masonry {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: 1px;
+  grid-auto-flow: dense;
+  column-gap: var(--pin-gap);
+  align-items: start;
+  min-width: 0;
+}
+
+.masonry.compact {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  --pin-gap: 16px;
+}
+
+.masonry-cell {
+  grid-row-end: span 400;
+  min-width: 0;
+  padding-bottom: var(--pin-gap);
+}
+
+.masonry-cell > div {
+  min-width: 0;
+}
+
+.masonry-cell:has(.menu-open) {
+  position: relative;
+  z-index: 12;
+}
+
+/* ── Pin ───────────────────────────────────────────────────────────── */
+
+.pin {
+  position: relative;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 0.22s ease, border-color 0.22s ease, transform 0.22s ease;
+}
+
+.pin:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-pop);
+  transform: translateY(-2px);
+}
+
+.pin.is-selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.pin-media {
+  position: relative;
+  overflow: hidden;
+  border-radius: 15px 15px 0 0;
+  background: var(--surface-2);
+  isolation: isolate;
+}
+
+.pin-image-button {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  text-align: left;
+}
+
+.pin-image-button:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: -5px;
+}
+
+.pin-photo {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+/* Tone washes — derived from the product name, stable across sessions. */
+.pin-photo.tone-sand { background: #ece2d3; }
+.pin-photo.tone-sage { background: #dde4d9; }
+.pin-photo.tone-peach { background: #f1e0cf; }
+.pin-photo.tone-clay { background: #e7cbb9; }
+.pin-photo.tone-blue { background: #dfe8ef; }
+.pin-photo.tone-rose { background: #e6d6da; }
+.pin-photo.tone-cream { background: #eeeae0; }
+
+:root[data-theme="night"] .pin-photo.tone-sand { background: #2b2620; }
+:root[data-theme="night"] .pin-photo.tone-sage { background: #232a25; }
+:root[data-theme="night"] .pin-photo.tone-peach { background: #322620; }
+:root[data-theme="night"] .pin-photo.tone-clay { background: #33251d; }
+:root[data-theme="night"] .pin-photo.tone-blue { background: #1f272c; }
+:root[data-theme="night"] .pin-photo.tone-rose { background: #2c2326; }
+:root[data-theme="night"] .pin-photo.tone-cream { background: #272420; }
+
+.pin-photo > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.6s cubic-bezier(0.22, 0.61, 0.36, 1);
+  color: transparent;
+}
+
+.pin-photo.is-ready > img {
+  opacity: 1;
+}
+
+.pin:hover .pin-photo > img {
+  transform: scale(1.05);
+}
+
+.pin-photo-blank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  height: 100%;
+  padding: 18px;
+  text-align: center;
+  background: radial-gradient(ellipse at 72% 24%, rgba(255, 255, 255, 0.5), transparent 68%);
+}
+
+.blank-mark {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 19px;
+  font-weight: 600;
+  color: rgba(40, 32, 26, 0.55);
+}
+
+:root[data-theme="night"] .blank-mark {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.pin-photo-blank > small {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(40, 32, 26, 0.42);
+}
+
+:root[data-theme="night"] .pin-photo-blank > small {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.pin-flag {
+  position: absolute;
+  top: 11px;
+  left: 11px;
+  z-index: 2;
+  padding: 4px 9px;
+  border-radius: var(--radius-pill);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: rgba(255, 253, 248, 0.94);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(40, 32, 26, 0.08);
+}
+
+.pin-flag.low { color: var(--amber); }
+.pin-flag.out { color: var(--red); }
+
+.pin-save,
+.pin-select {
+  position: absolute;
+  z-index: 3;
+  top: 10px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: rgba(255, 253, 248, 0.94);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 2px 8px rgba(40, 32, 26, 0.08);
+  transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+
+.pin-save {
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  color: var(--muted);
+}
+
+.pin-save:hover {
+  color: var(--accent-deep);
+  transform: translateY(-1px);
+}
+
+.pin-save.is-saved {
+  color: var(--accent);
+  background: var(--accent-wash);
+}
+
+.pin-save:active {
+  transform: scale(0.92);
+}
+
+.pin-select {
+  left: 10px;
+  width: 27px;
+  height: 27px;
+  color: #fff;
+}
+
+.pin-select.is-selected {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.pin-quick {
+  position: absolute;
+  z-index: 2;
+  left: 11px;
+  right: 11px;
+  bottom: 11px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  opacity: 0;
+  transform: translateY(5px);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.pin:hover .pin-quick,
+.pin:focus-within .pin-quick {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.pin-quick > button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 7px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 253, 248, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(7px);
+  color: var(--ink);
+  font-size: 10.5px;
+  font-weight: 700;
+  box-shadow: 0 3px 10px rgba(40, 32, 26, 0.08);
+  transition: background-color 0.16s ease;
+}
+
+.pin-quick > button:first-child {
+  flex: 1;
+}
+
+.pin-quick > button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.pin-quick > button.primary:hover {
+  background: var(--accent-deep);
+}
+
+.pin-quick > button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.pin-body {
+  padding: 12px 14px 13px;
+}
+
+.pin-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.pin-meta > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pin-meta > span:last-child {
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.75;
+  flex-shrink: 0;
+}
+
+.pin-headline {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.pin-name {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.pin-name:hover {
+  color: var(--accent-deep);
+}
+
+.pin-price {
+  flex-shrink: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.pin-footline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  min-height: 22px;
+}
+
+.pin-stock {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.pin-stock > i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--green);
+}
+
+.pin-stock:hover > span {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pin-stock.low { color: var(--amber); }
+.pin-stock.low > i { background: var(--amber); }
+.pin-stock.out { color: var(--red); }
+.pin-stock.out > i { background: var(--red); }
+
+.pin-menu-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.pin-more {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 24px;
+  border-radius: 7px;
+  color: var(--muted);
+}
+
+.pin-more:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.pin-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: -4px;
+  z-index: 20;
+  min-width: 186px;
+  padding: 5px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow-pop);
+}
+
+.pin-menu > button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 8px;
+  text-align: left;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pin-menu > button:hover:not(:disabled) {
+  background: var(--accent-wash);
+  color: var(--accent-deep);
+}
+
+.pin-menu > button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pin-menu > button.danger {
+  color: var(--red);
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+  padding-top: 11px;
+}
+
+.pin-menu > button.danger:hover {
+  background: var(--accent-wash);
+  color: var(--red);
+}
+
+.pin-followup {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.pin-followup > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.pin-followup.restock:hover {
+  background: var(--accent-wash);
+  border-color: var(--accent);
+  color: var(--accent-deep);
+}
+
+/* Add tile */
+.shelf-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+  width: 100%;
+  min-height: 230px;
+  padding: 26px 20px;
+  border: 1px dashed var(--line);
+  border-radius: 16px;
+  background: var(--surface-2);
+  color: var(--muted);
+  transition: background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.shelf-add > span {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 12px;
+  border-radius: 13px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--accent);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.shelf-add > strong {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.shelf-add > small {
+  font-size: 10.5px;
+  line-height: 1.6;
+  max-width: 190px;
+}
+
+.shelf-add:hover {
+  background: var(--accent-wash);
+  border-color: var(--accent);
+}
+
+.shelf-add:hover > span {
+  transform: rotate(-6deg);
+  border-color: var(--accent);
+}
+
+/* ── Table view ────────────────────────────────────────────────────── */
+
+.shelf-table-wrap {
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.shelf-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+.shelf-table th {
+  padding: 12px 15px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.shelf-table td {
+  padding: 11px 15px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+  vertical-align: middle;
+}
+
+.shelf-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.shelf-table tbody tr:hover {
+  background: var(--surface-2);
+}
+
+.shelf-table tr.is-selected {
+  background: var(--accent-wash);
+}
+
+.row-product {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  text-align: left;
+}
+
+.row-photo {
+  display: block;
+  width: 40px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.row-photo .pin-photo > img {
+  opacity: 1;
+}
+
+.row-photo .pin-photo-blank {
+  padding: 0;
+  gap: 0;
+}
+
+.row-photo .blank-mark {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  font-size: 13px;
+}
+
+.row-photo .pin-photo-blank > small {
+  display: none;
+}
+
+.row-product > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.row-product strong {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ink);
+  line-height: 1.4;
+}
+
+.row-product small {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.row-product:hover strong {
+  color: var(--accent-deep);
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.row-actions > button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--muted);
+}
+
+.row-actions > button:hover {
+  background: var(--accent-wash);
+  color: var(--accent-deep);
+}
+
+.row-actions > button.is-saved {
+  color: var(--accent);
+}
+
+/* ── Responsive ────────────────────────────────────────────────────── */
+
+@media (min-width: 1650px) {
+  .masonry { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .masonry.compact { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1240px) {
+  .masonry { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .masonry.compact { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .shelf-snapshot { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shelf-snapshot > *:nth-child(2) { border-right: 0; }
+  .shelf-snapshot > *:nth-child(-n + 2) { border-bottom: 1px solid var(--line); }
+}
+
+@media (max-width: 760px) {
+  .shelf { --pin-gap: 14px; }
+  .masonry { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .masonry.compact { grid-template-columns: repeat(2, minmax(0, 1fr)); --pin-gap: 12px; }
+  .pin-quick { opacity: 1; transform: none; pointer-events: auto; }
+  .pin:hover .pin-photo > img { transform: none; }
+  .pin:hover { transform: none; }
+  .pin-body { padding: 11px 12px 12px; }
+  .pin-headline { flex-direction: column; gap: 3px; }
+  .pin-name { font-size: 12.5px; }
+  .shelf-search { max-width: none; }
+}
+
+@media (max-width: 460px) {
+  .shelf-snapshot { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .snap-icon { display: none; }
+  .snap-text > strong { font-size: 17px; }
+  .pin-quick > button:first-child > span { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pin,
+  .pin-photo > img,
+  .pin-quick,
+  .pin-save,
+  .shelf-add,
+  .shelf-add > span {
+    transition: none !important;
+    transform: none !important;
+  }
+}

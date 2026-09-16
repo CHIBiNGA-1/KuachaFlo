@@ -1,0 +1,50 @@
+# Local development stack. Postgres + the API + the web app.
+# Copy backend/.env.example → backend/.env and frontend/.env.example →
+# frontend/.env.local first, then: docker compose up --build
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: kratte
+      POSTGRES_PASSWORD: kratte
+      POSTGRES_DB: kratte
+    ports:
+      - "5432:5432"
+    volumes:
+      - kratte-db:/var/lib/postgresql/data
+    # NOTE: the SQL in supabase/ references auth.users and is meant for a
+    # Supabase project, not this bare Postgres. For local work the API
+    # creates its own tables on boot (SQLAlchemy create_all), so this
+    # container needs no init scripts.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kratte"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://kratte:kratte@db:5432/kratte
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  kratte-db:
