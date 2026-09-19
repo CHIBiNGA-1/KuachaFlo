@@ -45,12 +45,11 @@ export function Sheet({
           </button>
         </div>
         <div className="mt-4">{children}</div>
-        <div className="mt-5 flex items-center justify-between gap-3">
-          <small className="text-[11px] text-muted">{foot}</small>
-          <button className="btn btn-dark" onClick={onClose}>
-            Done
-          </button>
-        </div>
+        {foot && (
+          <div className="mt-5">
+            <small className="text-[11px] text-muted">{foot}</small>
+          </div>
+        )}
       </div>
     </div>
   );
