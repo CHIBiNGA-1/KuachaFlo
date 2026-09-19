@@ -29,7 +29,7 @@ export function Sheet({
       className="sheet-overlay"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="sheet p-5" role="dialog" aria-modal="true" aria-label={title}>
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="kicker">{kicker}</div>
