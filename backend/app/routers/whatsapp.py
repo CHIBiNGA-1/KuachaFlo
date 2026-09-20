@@ -25,6 +25,7 @@ from app.config import settings
 from app.db import get_db
 from app.deps import LimitReached
 from app.deps import get_current_user
+from app.limiter import limiter
 from app.models import Business, Profile, WhatsAppProcessedMessage
 from app.shop_ask import low_stock_nudge, try_answer
 from app.shop_capture import receive_sheet_photo, receive_sheet_text
@@ -35,6 +36,27 @@ log = logging.getLogger(__name__)
 router = APIRouter(tags=["whatsapp"])
 
 LINK_CODE_TTL_MINUTES = 15
+
+# Brute-force guard on the 6-digit link code: 1,000,000 possible codes and
+# a 15-minute TTL is fine against a slow, honest retry — not against a
+# script hammering guesses at a known number. Locks that sender out of
+# further attempts for a cooldown window after too many wrong guesses.
+# Process-local (fine for the single instance this runs on; a multi-
+# instance deployment would want this in the database instead).
+LINK_MAX_ATTEMPTS = 5
+LINK_LOCKOUT_MINUTES = 15
+_link_failures: dict[str, list[datetime]] = {}
+
+
+def _link_attempts_locked(sender: str) -> bool:
+    cutoff = datetime.utcnow() - timedelta(minutes=LINK_LOCKOUT_MINUTES)
+    recent = [t for t in _link_failures.get(sender, []) if t > cutoff]
+    _link_failures[sender] = recent
+    return len(recent) >= LINK_MAX_ATTEMPTS
+
+
+def _record_link_failure(sender: str) -> None:
+    _link_failures.setdefault(sender, []).append(datetime.utcnow())
 
 LINK_COPY = (
     "To link this number, open KraTte → Settings → WhatsApp, "
@@ -56,6 +78,10 @@ CODE_WRONG_COPY = (
     "That code's wrong or expired — grab a fresh one from "
     "Settings → WhatsApp in the app."
 )
+LINK_LOCKED_COPY = (
+    "Too many wrong codes from this number — try again in a few minutes, "
+    "or grab a fresh code from Settings → WhatsApp in the app."
+)
 
 
 class WhatsAppLinkCodeOut(BaseModel):
@@ -68,7 +94,12 @@ class WhatsAppLinkCodeOut(BaseModel):
 # ── Account linking (called from the app) ──────────────────────────────
 
 @router.post("/api/v1/account/whatsapp/link-code")
-def generate_link_code(user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+@limiter.limit("10/hour")
+def generate_link_code(
+    request: Request,
+    user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     profile = db.get(Profile, user["id"])
     if profile is None:
         profile = Profile(id=user["id"], plan="free")
@@ -197,7 +228,10 @@ def _handle_message(db: Session, sender: str, message: dict) -> None:
 
     # --- linking: a 6-digit code as plain text (linked or not) ---
     if msg_type == "text" and text_body.strip().isdigit() and len(text_body.strip()) == 6:
-        if not _try_link(db, sender, text_body.strip()):
+        if _link_attempts_locked(sender):
+            send_text(sender, LINK_LOCKED_COPY)
+        elif not _try_link(db, sender, text_body.strip()):
+            _record_link_failure(sender)
             send_text(sender, CODE_WRONG_COPY)
         return
 
@@ -291,5 +325,6 @@ def _try_link(db: Session, sender: str, code: str) -> bool:
     candidate.whatsapp_link_code_expires = None
     db.commit()
 
+    _link_failures.pop(sender, None)
     send_text(sender, WELCOME_COPY)
     return True

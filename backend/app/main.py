@@ -5,9 +5,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from app.config import settings
 from app.db import init_db
+from app.limiter import limiter
 from app.routers import admin, billing, shop, whatsapp
 from app.shop.errors import ShopError, shop_error_handler
 
@@ -21,6 +25,13 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="KraTte", lifespan=lifespan)
+
+# App-wide default of 200 req/min per IP (see app/limiter.py), plus
+# tighter per-route limits on abuse-prone endpoints (admin auth,
+# payment-request submission, WhatsApp link-code generation).
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 origins = [o.strip().rstrip("/") for o in settings.allowed_origins.split(",") if o.strip()]
 if not origins:

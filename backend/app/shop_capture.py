@@ -38,6 +38,19 @@ NOTHING_COPY = (
     "and I'll ring them up."
 )
 
+# A single photo/text capture auto-files straight into the ledger with no
+# human review — fine for a normal day's tally, but it means a
+# convincing-enough fake sheet (or a misread by the model) becomes real
+# money without anyone looking at it first. Amounts above this get held
+# back for a human to confirm in the app instead of being auto-filed.
+# See finding #5 of the security review — not a code bug, just capping
+# the blast radius of trusting a single AI read of a photo.
+LARGE_AMOUNT_ZMW = 5000.0
+NEEDS_CONFIRMATION_COPY = (
+    "That comes to K{amount:,.0f} — bigger than usual, so I've held it "
+    "back instead of filing it automatically. Add it in the app if it's right."
+)
+
 
 def _ring_sale(db: Session, user: dict, business, draft: dict) -> dict:
     lines, created = match_or_create_products(db, business, draft.get("line_items"))
@@ -51,10 +64,17 @@ def _ring_sale(db: Session, user: dict, business, draft: dict) -> dict:
             "date": occurred, "channel": "Retail", "payment": "Paid",
             "notes": "From a WhatsApp tally",
         })
-        db.commit()
     except ShopError as e:
         db.rollback()
         return {"status": "error", "message": e.message}
+
+    total = float(sale.amount_total or 0)
+    if total > LARGE_AMOUNT_ZMW:
+        db.rollback()
+        return {"status": "needs_confirmation",
+                "message": NEEDS_CONFIRMATION_COPY.format(amount=total)}
+
+    db.commit()
     db.refresh(sale)
     return {"status": "filed", "sale": {
         "reference": sale.reference,
@@ -74,6 +94,9 @@ def _file_supplier(db: Session, user: dict, business, draft: dict) -> dict:
     amount = draft.get("amount")
     if not amount or float(amount) <= 0:
         return {"status": "resend", "message": NO_AMOUNT_COPY}
+    if float(amount) > LARGE_AMOUNT_ZMW:
+        return {"status": "needs_confirmation",
+                "message": NEEDS_CONFIRMATION_COPY.format(amount=float(amount))}
     occurred = draft.get("occurred_on") or datetime.utcnow().date().isoformat()
     name = (draft.get("party") or "").strip() or "Supplier note"
     try:

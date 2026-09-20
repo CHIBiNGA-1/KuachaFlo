@@ -8,12 +8,13 @@ profile row (stamping the token email so the founder can tell claims
 apart).
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user
+from app.limiter import limiter
 from app.models import PaymentRequest, Profile
 from app.telegram import notify_admin
 
@@ -22,10 +23,19 @@ router = APIRouter(prefix="/api/v1/billing", tags=["billing"])
 VALID_PLANS = {"pro", "business"}
 VALID_NETWORKS = {"airtel", "mtn"}
 
+# The price a client claims to be paying is never trusted — it's computed
+# here from plan_requested. Keep in sync with frontend/components/account/
+# BillingSheet.tsx's PLANS constant; a mismatch is a display bug, not a
+# billing bug, since this table is what actually gets stored and reviewed.
+PLAN_PRICES = {"pro": 150.0, "business": 450.0}
+
 
 class PaymentRequestCreate(BaseModel):
     plan_requested: str
-    amount: float
+    # Accepted for backwards compatibility with older frontend builds that
+    # still send it, but never trusted — see PLAN_PRICES above. Optional so
+    # a client can drop the field entirely going forward.
+    amount: float | None = None
     currency: str = "ZMW"
     momo_network: str
     momo_reference: str
@@ -46,7 +56,9 @@ def _out(row: PaymentRequest) -> dict:
 
 
 @router.post("/payment-request")
+@limiter.limit("5/hour")
 def submit_payment_request(
+    request: Request,
     payload: PaymentRequestCreate,
     user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -57,6 +69,11 @@ def submit_payment_request(
         raise HTTPException(400, f"momo_network must be one of {sorted(VALID_NETWORKS)}")
     if not payload.momo_reference.strip():
         raise HTTPException(400, "momo_reference is required")
+
+    # Canonical price for the plan, never whatever the client sent — a
+    # tampered amount would otherwise look legitimate to the admin
+    # reviewing it (see finding #1 of the security review).
+    amount = PLAN_PRICES[payload.plan_requested]
 
     profile = db.get(Profile, user["id"])
     if profile is None:
@@ -69,7 +86,7 @@ def submit_payment_request(
     request = PaymentRequest(
         user_id=user["id"],
         plan_requested=payload.plan_requested,
-        amount=payload.amount,
+        amount=amount,
         currency=payload.currency,
         momo_network=payload.momo_network,
         momo_reference=payload.momo_reference.strip(),
@@ -82,7 +99,7 @@ def submit_payment_request(
     notify_admin(
         f"New payment claim\n"
         f"*{user.get('email') or user['id']}* wants *{payload.plan_requested}*\n"
-        f"{payload.amount} {payload.currency} via {payload.momo_network.upper()}\n"
+        f"{amount} {payload.currency} via {payload.momo_network.upper()}\n"
         f"Ref: `{payload.momo_reference.strip()}`\n"
         f"Review: `PATCH /api/v1/admin/payment-requests/{request.id}`"
     )

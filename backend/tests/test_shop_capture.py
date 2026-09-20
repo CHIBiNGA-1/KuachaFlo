@@ -131,6 +131,36 @@ def test_shop_supplier_note_files_unpaid_expense(db, sent, monkeypatch):
     assert "unpaid expense" in sent[-1][1]
 
 
+def test_shop_tally_over_threshold_is_held_not_filed(db, sent, monkeypatch):
+    """Finding #5 of the security review: an unusually large auto-read
+    amount is held back for the owner to confirm in the app, rather than
+    filed straight into Sales off a single AI read of a photo/text."""
+    _profile(db)
+    _business(db)
+    monkeypatch.setattr(cap, "classify_text", lambda text, slugs: _sheet(
+        line_items=[{"name": "Coke", "quantity": 500, "unit_price": 15.0}]))  # K7,500
+
+    router._handle_message(db, SENDER, {"type": "text", "text": {"body": "coke x500"}})
+
+    assert db.query(Order).count() == 0
+    assert "held it back" in sent[-1][1]
+    assert "K7,500" in sent[-1][1]
+
+
+def test_shop_supplier_note_over_threshold_is_held_not_filed(db, sent, monkeypatch):
+    _profile(db)
+    monkeypatch.setattr(cap, "classify_text", lambda text, slugs: {
+        "kind": "supplier_note", "party": "Zambeef", "amount": 9000.0,
+        "occurred_on": "2026-09-11", "confidence": "high",
+    })
+
+    router._handle_message(db, SENDER, {"type": "text", "text": {"body": "invoice"}})
+
+    assert db.query(LedgerEntry).count() == 0
+    assert "held it back" in sent[-1][1]
+    assert "K9,000" in sent[-1][1]
+
+
 def test_shop_personal_receipt_is_refused(db, sent, monkeypatch):
     _profile(db)
     _business(db)

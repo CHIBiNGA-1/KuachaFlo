@@ -12,10 +12,17 @@ from app import telegram
 from app.config import settings
 from app.db import Base
 from app.deps import require_admin
+from app.limiter import limiter
 from app.models import LedgerEntry, PaymentRequest, Profile
 from app.routers import admin, billing
 
 USER = {"id": "u1", "email": "m@test.zm"}
+
+# These tests call route handlers directly, bypassing the ASGI layer
+# slowapi's middleware runs in — so the rate limit added in
+# submit_payment_request (finding #4) is irrelevant noise here and is
+# tested for real, end-to-end, in test_rate_limit.py instead.
+limiter.enabled = False
 
 
 @pytest.fixture
@@ -32,7 +39,7 @@ def _claim(db, **kw):
         plan_requested="pro", amount=150, currency="ZMW",
         momo_network="airtel", momo_reference="MP123", **kw,
     )
-    return billing.submit_payment_request(payload, user=USER, db=db)
+    return billing.submit_payment_request(request=None, payload=payload, user=USER, db=db)
 
 
 def test_claim_validation(db):
@@ -40,17 +47,20 @@ def test_claim_validation(db):
             "momo_reference": "MP123"}
     with pytest.raises(HTTPException) as e:
         billing.submit_payment_request(
-            billing.PaymentRequestCreate(**{**base, "plan_requested": "free"}),
+            request=None,
+            payload=billing.PaymentRequestCreate(**{**base, "plan_requested": "free"}),
             user=USER, db=db)
     assert e.value.status_code == 400
     with pytest.raises(HTTPException) as e:
         billing.submit_payment_request(
-            billing.PaymentRequestCreate(**{**base, "momo_network": "zamtel"}),
+            request=None,
+            payload=billing.PaymentRequestCreate(**{**base, "momo_network": "zamtel"}),
             user=USER, db=db)
     assert e.value.status_code == 400
     with pytest.raises(HTTPException) as e:
         billing.submit_payment_request(
-            billing.PaymentRequestCreate(**{**base, "momo_reference": "  "}),
+            request=None,
+            payload=billing.PaymentRequestCreate(**{**base, "momo_reference": "  "}),
             user=USER, db=db)
     assert e.value.status_code == 400
 
@@ -68,7 +78,7 @@ def test_mine_lists_only_mine(db):
     _claim(db)
     other = billing.PaymentRequestCreate(
         plan_requested="business", amount=450, momo_network="mtn", momo_reference="X")
-    billing.submit_payment_request(other, user={"id": "u2", "email": "x@y.zm"}, db=db)
+    billing.submit_payment_request(request=None, payload=other, user={"id": "u2", "email": "x@y.zm"}, db=db)
     mine = billing.list_my_payment_requests(user=USER, db=db)
     assert len(mine) == 1 and mine[0]["momo_reference"] == "MP123"
 

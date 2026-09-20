@@ -1,5 +1,7 @@
 """Request dependencies: who are you, and are you allowed near /admin."""
 
+import hmac
+
 from fastapi import Depends, Header, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -53,5 +55,8 @@ def require_admin(x_admin_key: str | None = Header(default=None)) -> None:
     if not settings.admin_api_key:
         # Fail closed: an unset key must never mean "open to everyone".
         raise HTTPException(status_code=503, detail="Admin API is not configured.")
-    if not x_admin_key or x_admin_key != settings.admin_api_key:
+    # Constant-time compare — a plain `!=` leaks how many leading
+    # characters matched via response timing. Same pattern already used
+    # for the WhatsApp webhook signature in app/whatsapp.py.
+    if not x_admin_key or not hmac.compare_digest(x_admin_key, settings.admin_api_key):
         raise HTTPException(status_code=401, detail="Invalid or missing admin key.")
