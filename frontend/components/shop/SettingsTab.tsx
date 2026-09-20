@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { fetchMyPlan, PLAN_NAMES } from "@/lib/format";
+import { THEMES, applyTheme, getTheme, type Theme } from "@/lib/theme";
 import { BillingSheet } from "../account/BillingSheet";
 import { WhatsAppSheet } from "../account/WhatsAppSheet";
 import {
@@ -11,7 +12,13 @@ import {
   type ShopBusiness,
 } from "@/lib/shop";
 
-export function SettingsTab({ onBack }: { onBack: () => void }) {
+export function SettingsTab({
+  onBack,
+  onSignOut,
+}: {
+  onBack: () => void;
+  onSignOut: () => void;
+}) {
   const [business, setBusiness] = useState<ShopBusiness | null>(null);
   const [plan, setPlan] = useState("free");
   const [loading, setLoading] = useState(true);
@@ -22,6 +29,7 @@ export function SettingsTab({ onBack }: { onBack: () => void }) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [billing, setBilling] = useState(false);
   const [wa, setWa] = useState(false);
+  const [theme, setTheme] = useState<Theme>("studio");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -40,6 +48,7 @@ export function SettingsTab({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     load();
+    setTheme(getTheme());
   }, [load]);
 
   async function save() {
@@ -58,6 +67,11 @@ export function SettingsTab({ onBack }: { onBack: () => void }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  function pickTheme(t: Theme) {
+    setTheme(t);
+    applyTheme(t);
   }
 
   return (
@@ -145,6 +159,42 @@ export function SettingsTab({ onBack }: { onBack: () => void }) {
             </span>
           </div>
 
+          <div className="py-3.5" style={{ borderBottom: "1px solid var(--line)" }}>
+            <span className="block text-[14px] font-extrabold">Theme</span>
+            <div className="mt-2 flex gap-2">
+              {THEMES.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => pickTheme(t.id)}
+                  className="flex flex-col items-center gap-1.5"
+                  aria-label={`${t.label} theme`}
+                >
+                  <span
+                    className="grid h-9 w-9 place-items-center rounded-xl border-2 transition-transform"
+                    style={{
+                      background: t.swatch,
+                      borderColor: theme === t.id ? "var(--accent)" : "var(--line)",
+                      transform: theme === t.id ? "scale(1.1)" : "scale(1)",
+                    }}
+                  >
+                    {theme === t.id && (
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ background: "var(--accent)" }}
+                      />
+                    )}
+                  </span>
+                  <span
+                    className="text-[10px] font-bold"
+                    style={{ color: theme === t.id ? "var(--ink)" : "var(--muted)" }}
+                  >
+                    {t.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <button
             onClick={() => setBilling(true)}
             className="flex w-full items-center gap-3 py-3.5 text-left"
@@ -162,6 +212,7 @@ export function SettingsTab({ onBack }: { onBack: () => void }) {
           <button
             onClick={() => setWa(true)}
             className="flex w-full items-center gap-3 py-3.5 text-left"
+            style={{ borderBottom: "1px solid var(--line)" }}
           >
             <span className="min-w-0 flex-1">
               <span className="block text-[14px] font-extrabold">WhatsApp</span>
@@ -171,6 +222,15 @@ export function SettingsTab({ onBack }: { onBack: () => void }) {
             </span>
             <span className="shrink-0 text-[12px] font-extrabold text-muted underline">Link</span>
           </button>
+
+          <div className="py-4">
+            <button
+              onClick={onSignOut}
+              className="text-[13px] font-bold text-muted transition-colors hover:text-ink"
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       )}
 

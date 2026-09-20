@@ -29,6 +29,10 @@
   --radius-card: 20px;
   --radius-lg: 24px;
   --radius-pill: 999px;
+  --glass: rgba(255, 253, 248, 0.94);
+  --glass-border: rgba(255, 255, 255, 0.7);
+  --overlay: rgba(20, 16, 12, 0.4);
+  --shadow-glass: 0 2px 8px rgba(40, 32, 26, 0.08);
 }
 
 :root[data-theme="paper"] {
@@ -49,6 +53,10 @@
   --radius-card: 20px;
   --radius-lg: 24px;
   --radius-pill: 999px;
+  --glass: rgba(250, 247, 239, 0.94);
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --overlay: rgba(43, 36, 23, 0.4);
+  --shadow-glass: 0 2px 8px rgba(43, 36, 23, 0.1);
 }
 
 :root[data-theme="slate"] {
@@ -69,6 +77,10 @@
   --radius-card: 20px;
   --radius-lg: 24px;
   --radius-pill: 999px;
+  --glass: rgba(255, 255, 255, 0.94);
+  --glass-border: rgba(223, 229, 233, 0.7);
+  --overlay: rgba(20, 30, 36, 0.4);
+  --shadow-glass: 0 2px 8px rgba(20, 30, 36, 0.1);
 }
 
 :root[data-theme="night"] {
@@ -89,6 +101,10 @@
   --radius-card: 20px;
   --radius-lg: 24px;
   --radius-pill: 999px;
+  --glass: rgba(23, 28, 30, 0.92);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --overlay: rgba(0, 0, 0, 0.6);
+  --shadow-glass: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 * {
@@ -207,7 +223,7 @@ body {
 }
 
 .btn-dark:hover {
-  opacity: 0.88;
+  filter: brightness(1.15);
 }
 
 /* ── Bottom sheet (mobile modals) ───────────────────────────────────── */
@@ -215,7 +231,7 @@ body {
 .sheet-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(20, 16, 12, 0.4);
+  background: var(--overlay);
   backdrop-filter: blur(2px);
   z-index: 40;
 }

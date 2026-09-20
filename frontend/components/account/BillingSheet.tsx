@@ -41,9 +41,9 @@ const PLANS = [
 type PlanId = "free" | "pro" | "business";
 
 function statusStyle(status: string): { background: string; color: string } {
-  if (status === "confirmed") return { background: "#dcefd7", color: "#1e5c2e" };
-  if (status === "rejected") return { background: "#f6d1cc", color: "#7a2318" };
-  return { background: "#f6e5b8", color: "#6b4e0a" };
+  if (status === "confirmed") return { background: "var(--accent-wash)", color: "var(--green)" };
+  if (status === "rejected") return { background: "var(--accent-wash)", color: "var(--red)" };
+  return { background: "var(--accent-wash)", color: "var(--amber)" };
 }
 
 export function BillingSheet({
@@ -108,12 +108,7 @@ export function BillingSheet({
 
   return (
     <Sheet kicker="Billing" title="Upgrade your plan" onClose={onClose}>
-      <p className="text-[13px] leading-relaxed text-muted">
-        Pay via Airtel Money or MTN MoMo, submit your transaction reference below,
-        and your plan activates once it&apos;s verified — usually within a few hours.
-      </p>
-
-      <div className="mt-4 flex flex-col gap-2">
+      <div className="flex flex-col gap-2">
         {PLANS.map((p) => {
           const isCurrent = current === p.id;
           const isSelected = selected === p.id;
@@ -162,86 +157,59 @@ export function BillingSheet({
       </div>
 
       {current !== "business" && (
-        <div className="mt-4">
-          <div className="text-[14px] font-extrabold">
-            Pay for {tier.name} — K{tier.price}/month
+        <div className="mt-5">
+          <div className="grid grid-cols-2 gap-2">
+            {(["airtel", "mtn"] as const).map((n) => {
+              const isNetSelected = network === n;
+              return (
+                <button
+                  key={n}
+                  onClick={() => setNetwork(n)}
+                  className="rounded-2xl border p-3.5 text-left"
+                  style={{
+                    borderColor: isNetSelected ? "var(--ink)" : "var(--line)",
+                    background: "var(--bg)",
+                    outline: isNetSelected ? "1px solid var(--ink)" : "none",
+                  }}
+                >
+                  <div className="kicker">{n === "airtel" ? "Airtel Money" : "MTN MoMo"}</div>
+                  <div className="tnum mt-1 text-[14px] font-black">{MOMO_NUMBERS[n]}</div>
+                </button>
+              );
+            })}
           </div>
-          <div className="mt-2.5 grid grid-cols-2 gap-2">
-            {(["airtel", "mtn"] as const).map((n) => (
-              <div
-                key={n}
-                className="rounded-2xl border p-3.5"
-                style={{ borderColor: "var(--line)", background: "var(--bg)" }}
-              >
-                <div className="kicker">{n === "airtel" ? "Airtel Money" : "MTN MoMo"}</div>
-                <div className="tnum mt-1 text-[14px] font-black">{MOMO_NUMBERS[n]}</div>
-              </div>
-            ))}
-          </div>
-          <p className="mt-2.5 text-[12px] leading-relaxed text-muted">
-            Send <b>K{tier.price}</b> to the number above, then fill in the details
-            from your confirmation SMS below.
-          </p>
 
           {success ? (
             <div
               className="mt-3 rounded-2xl p-4 text-[13px] font-semibold leading-relaxed"
-              style={{ background: "#dcefd7", color: "#1e5c2e" }}
+              style={{ background: "var(--accent-wash)", color: "var(--green)" }}
             >
-              ✓ Submitted — we&apos;ll verify and activate your plan shortly. You can
-              track the status below.
+              ✓ Submitted — we&apos;ll verify shortly.
             </div>
           ) : (
             <div className="mt-3 flex flex-col gap-2.5">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="kicker block">Network</label>
-                  <select
-                    className="field mt-1.5"
-                    value={network}
-                    onChange={(e) => setNetwork(e.target.value as "airtel" | "mtn")}
-                  >
-                    <option value="airtel">Airtel Money</option>
-                    <option value="mtn">MTN MoMo</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="kicker block">Plan</label>
-                  <select
-                    className="field mt-1.5"
-                    value={selected}
-                    onChange={(e) => setSelected(e.target.value as "pro" | "business")}
-                  >
-                    <option value="pro">Pro — K150/month</option>
-                    <option value="business">Business — K450/month</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="kicker block">Transaction reference</label>
-                <input
-                  className="field mt-1.5"
-                  placeholder="e.g. MP240819.1234.A56789"
-                  value={reference}
-                  onChange={(e) => setReference(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="kicker block">Number you paid from (optional)</label>
-                <input
-                  className="field mt-1.5"
-                  placeholder="e.g. 097XXXXXXX"
-                  value={senderNumber}
-                  onChange={(e) => setSenderNumber(e.target.value)}
-                />
-              </div>
+              <p className="text-[12px] leading-relaxed text-muted">
+                Send <b>K{tier.price}</b> to the number above, then confirm below.
+              </p>
+              <input
+                className="field"
+                placeholder="Transaction reference"
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+              />
+              <input
+                className="field"
+                placeholder="Number you paid from (optional)"
+                value={senderNumber}
+                onChange={(e) => setSenderNumber(e.target.value)}
+              />
               {error && (
                 <p className="text-[13px] font-bold" style={{ color: "var(--red)" }}>
                   {error}
                 </p>
               )}
               <button onClick={submit} disabled={submitting} className="btn btn-accent w-full">
-                {submitting ? "Submitting…" : "I've paid — submit for verification"}
+                {submitting ? "Submitting…" : "Submit for verification"}
               </button>
             </div>
           )}

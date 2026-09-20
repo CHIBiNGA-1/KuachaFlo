@@ -127,9 +127,6 @@ export function ShopShell({ email, onSignOut }: { email: string; onSignOut: () =
             {initials}
           </div>
           <span className="min-w-0 flex-1 truncate text-[12px] text-muted">{email || "Signed in"}</span>
-          <button onClick={signOut} className="shrink-0 text-[11px] font-bold text-muted hover:text-ink">
-            Out
-          </button>
         </div>
       </aside>
 
@@ -137,7 +134,7 @@ export function ShopShell({ email, onSignOut }: { email: string; onSignOut: () =
       <main className="mx-auto w-full max-w-2xl px-5 pb-28 pt-6 md:max-w-none md:flex-1 md:px-0 md:pb-6 md:pt-0">
         <div className="md:card md:p-8">
           {/* Mobile-only top bar */}
-          <div className="flex items-center justify-between md:hidden">
+          <div className="flex items-center md:hidden">
             <div className="flex items-center gap-2.5">
               <div
                 className="grid h-9 w-9 place-items-center rounded-xl font-display text-[13px]"
@@ -147,9 +144,6 @@ export function ShopShell({ email, onSignOut }: { email: string; onSignOut: () =
               </div>
               <span className="font-display text-[17px]">KraTte</span>
             </div>
-            <button onClick={signOut} className="text-xs font-bold text-muted underline">
-              Sign out
-            </button>
           </div>
 
           <div className="mt-5 md:mt-0">
@@ -205,7 +199,7 @@ export function ShopShell({ email, onSignOut }: { email: string; onSignOut: () =
                 onReviewInventory={goLowStock}
               />
             ) : (
-              <SettingsTab onBack={() => setTab("overview")} />
+              <SettingsTab onBack={() => setTab("overview")} onSignOut={signOut} />
             )}
           </div>
         </div>
