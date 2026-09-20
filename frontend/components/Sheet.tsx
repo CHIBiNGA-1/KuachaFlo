@@ -29,27 +29,29 @@ export function Sheet({
       className="sheet-overlay"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="sheet p-5" role="dialog" aria-modal="true" aria-label={title}>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="kicker">{kicker}</div>
-            <h3 className="mt-1 font-display text-[24px]">{title}</h3>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="sheet-scroll p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="kicker">{kicker}</div>
+              <h3 className="mt-1 font-display text-[24px]">{title}</h3>
+            </div>
+            <button
+              onClick={onClose}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-lg text-muted"
+              style={{ background: "var(--bg)" }}
+              aria-label="Close"
+            >
+              ×
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-lg text-muted"
-            style={{ background: "var(--bg)" }}
-            aria-label="Close"
-          >
-            ×
-          </button>
+          <div className="mt-4">{children}</div>
+          {foot && (
+            <div className="mt-5">
+              <small className="text-[11px] text-muted">{foot}</small>
+            </div>
+          )}
         </div>
-        <div className="mt-4">{children}</div>
-        {foot && (
-          <div className="mt-5">
-            <small className="text-[11px] text-muted">{foot}</small>
-          </div>
-        )}
       </div>
     </div>
   );
