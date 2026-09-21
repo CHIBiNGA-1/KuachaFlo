@@ -2,21 +2,31 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
 import { applyTheme } from "@/lib/theme";
 
 export default function LandingPage() {
-  // No auth check gates anything on this page — it must render the same
-  // for a logged-out visitor, a crawler, or a reviewer with no session at
-  // all. The only thing session state changes is where the button below
-  // points, and that's a client-side enhancement, not a redirect.
+  // This page must render its full public content on the very first
+  // paint, with no auth check in the way — that's the whole point (see
+  // the /app split). The router.replace below only ever runs *after*
+  // that content is already on screen and only once we've confirmed a
+  // real session, so a logged-out visitor, a crawler, or a reviewer
+  // never sees anything but the public page. A signed-in visitor gets
+  // bounced straight into the app instead of having to click through.
+  const router = useRouter();
   const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
     applyTheme();
     if (!supabase) return;
-    supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
-  }, []);
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        setSignedIn(true);
+        router.replace("/app");
+      }
+    });
+  }, [router]);
 
   return (
     <div style={{ background: "var(--bg)", color: "var(--ink)" }} className="min-h-screen">
