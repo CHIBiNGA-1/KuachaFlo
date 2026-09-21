@@ -97,10 +97,10 @@ export default function TermsPage() {
             <p className="mt-2">
               Questions about these terms:{" "}
               <a
-                href="mailto:PUT-YOUR-CONTACT-EMAIL-HERE"
+                href="mailto:chibingatheace@gmail.com"
                 style={{ color: "var(--ink)", textDecoration: "underline" }}
               >
-                PUT-YOUR-CONTACT-EMAIL-HERE
+                chibingatheace@gmail.com
               </a>
               .
             </p>
