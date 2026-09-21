@@ -6,6 +6,9 @@ export const metadata: Metadata = {
   title: "KraTte — Run your shop with clarity",
   description: "Inventory, orders, and daily operations in one calm workspace.",
   manifest: "/manifest.json",
+  verification: {
+    google: "TXEwYALHtoCPufmz5HZBXVUF12ezugbGvUcfdwqiWzY",
+  },
   appleWebApp: {
     capable: true,
     title: "KraTte",
