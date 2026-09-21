@@ -108,10 +108,10 @@ export default function PrivacyPage() {
             <p className="mt-2">
               Questions about this policy or your data:{" "}
               <a
-                href="mailto:PUT-YOUR-CONTACT-EMAIL-HERE"
+                href="mailto:chibingatheace@gmail.com"
                 style={{ color: "var(--ink)", textDecoration: "underline" }}
               >
-                PUT-YOUR-CONTACT-EMAIL-HERE
+                chibingatheace@gmail.com
               </a>
               .
             </p>
