@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
 
@@ -18,7 +19,7 @@ export function AuthScreen({ initialMode }: { initialMode: "up" | "in" }) {
   useEffect(() => {
     if (!supabase) return;
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) router.replace("/");
+      if (data.session) router.replace("/app");
     });
   }, [router]);
 
@@ -52,7 +53,7 @@ export function AuthScreen({ initialMode }: { initialMode: "up" | "in" }) {
         });
         if (error) throw error;
       }
-      router.replace("/");
+      router.replace("/app");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -199,7 +200,15 @@ export function AuthScreen({ initialMode }: { initialMode: "up" | "in" }) {
               </form>
 
               <p className="mt-5 text-center text-[11px] leading-relaxed text-muted">
-                By continuing, you agree to KraTte&apos;s Terms and acknowledge the Privacy Policy.
+                By continuing, you agree to KraTte&apos;s{" "}
+                <Link href="/terms" style={{ color: "var(--ink)" }} className="underline">
+                  Terms
+                </Link>{" "}
+                and acknowledge the{" "}
+                <Link href="/privacy" style={{ color: "var(--ink)" }} className="underline">
+                  Privacy Policy
+                </Link>
+                .
               </p>
             </div>
           )}
