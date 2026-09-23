@@ -1,0 +1,561 @@
+From 09107b63b28006dccca47610e74358a8500e5c67 Mon Sep 17 00:00:00 2001
+From: CHIBiNGA-1 <chibinga28@gmail.com>
+Date: Sun, 20 Sep 2026 16:27:13 +0000
+Subject: [PATCH] Security review fixes: #1-#5
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Five findings from a security review, each verified with a passing test:
+
+#1 — Payment amount tampering (billing.py). submit_payment_request took
+`amount` straight from the client with no check against the real price
+of `plan_requested`. Now computed server-side from a fixed PLAN_PRICES
+table; the client's amount field is accepted for backwards compatibility
+but ignored. Verified end-to-end via a real TestClient request in
+test_rate_limit.py::test_payment_request_amount_is_server_computed.
+
+#2 — Non-constant-time admin key check (deps.py). require_admin compared
+X-Admin-Key with plain `!=`, leaking timing info about how many leading
+characters matched. Now uses hmac.compare_digest, consistent with the
+WhatsApp webhook signature check elsewhere in the codebase.
+
+#3 — WhatsApp link-code brute force (routers/whatsapp.py). The 6-digit
+linking code had no attempt limiting. Added a 5-attempts/15-minute
+lockout per sender number, with a distinct "too many attempts" reply.
+Process-local (fine for the single Render instance this runs on).
+
+#4 — No rate limiting anywhere in the API. Added slowapi: a 200/min-per-
+IP app-wide default (main.py, app/limiter.py), plus tighter explicit
+limits on the two most abuse-prone endpoints — payment-request
+submission (5/hour) and WhatsApp link-code generation (10/hour).
+Confirmed via slowapi's source that its middleware checks limits before
+FastAPI resolves route dependencies, so this genuinely throttles admin-
+key guessing too, not just successful requests — not just decorating
+the admin endpoints themselves, which would run too late to matter.
+Verified via test_rate_limit.py::test_payment_request_is_rate_limited,
+a real TestClient request loop asserting the 6th call gets a 429.
+
+#5 — AI-capture pipeline had no ceiling (shop_capture.py). A single
+WhatsApp photo/text capture auto-filed straight into the ledger with no
+human review, at any amount. Amounts over K5,000 (ZMW) now come back as
+"needs_confirmation" instead of being auto-filed — held back for the
+owner to add manually in the app if it's right. Applies to both the
+sales-tally and supplier-note paths. Not a code bug fix so much as
+capping the blast radius of trusting a single AI read of a photo/text;
+see shop_capture.py's LARGE_AMOUNT_ZMW comment for the reasoning.
+
+Testing notes: the existing direct-call test style in test_billing.py
+bypasses the ASGI layer slowapi's middleware runs in, so those tests now
+pass request=None and disable the limiter (limiter.enabled = False) —
+the rate limit itself is verified for real, end-to-end, in the new
+test_rate_limit.py via FastAPI's TestClient instead. Also required
+StaticPool + check_same_thread=False on that file's SQLite test engine,
+since TestClient runs the app in a separate thread and a plain
+sqlite:///:memory: engine otherwise hands each thread its own empty
+database.
+
+requirements.txt: added slowapi==0.1.10.
+
+All 68 backend tests pass (64 pre-existing + 4 new).
+---
+ backend/app/deps.py                |  7 ++-
+ backend/app/limiter.py             | 15 +++++++
+ backend/app/main.py                | 11 +++++
+ backend/app/routers/billing.py     | 25 +++++++++--
+ backend/app/routers/whatsapp.py    | 39 ++++++++++++++++-
+ backend/app/shop_capture.py        | 25 ++++++++++-
+ backend/requirements.txt           |  1 +
+ backend/tests/test_billing.py      | 20 ++++++---
+ backend/tests/test_rate_limit.py   | 70 ++++++++++++++++++++++++++++++
+ backend/tests/test_shop_capture.py | 30 +++++++++++++
+ 10 files changed, 230 insertions(+), 13 deletions(-)
+ create mode 100644 backend/app/limiter.py
+ create mode 100644 backend/tests/test_rate_limit.py
+
+diff --git a/backend/app/deps.py b/backend/app/deps.py
+index a6fca1d..d1520e8 100644
+--- a/backend/app/deps.py
++++ b/backend/app/deps.py
+@@ -1,5 +1,7 @@
+ """Request dependencies: who are you, and are you allowed near /admin."""
+ 
++import hmac
++
+ from fastapi import Depends, Header, HTTPException
+ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+ 
+@@ -53,5 +55,8 @@ def require_admin(x_admin_key: str | None = Header(default=None)) -> None:
+     if not settings.admin_api_key:
+         # Fail closed: an unset key must never mean "open to everyone".
+         raise HTTPException(status_code=503, detail="Admin API is not configured.")
+-    if not x_admin_key or x_admin_key != settings.admin_api_key:
++    # Constant-time compare — a plain `!=` leaks how many leading
++    # characters matched via response timing. Same pattern already used
++    # for the WhatsApp webhook signature in app/whatsapp.py.
++    if not x_admin_key or not hmac.compare_digest(x_admin_key, settings.admin_api_key):
+         raise HTTPException(status_code=401, detail="Invalid or missing admin key.")
+diff --git a/backend/app/limiter.py b/backend/app/limiter.py
+new file mode 100644
+index 0000000..4d99063
+--- /dev/null
++++ b/backend/app/limiter.py
+@@ -0,0 +1,15 @@
++"""Shared rate-limiter instance.
++
++Imported by main.py (which wires it into the app and sets the app-wide
++default) and by any router that needs a stricter limit than that default
++on a specific abuse-prone endpoint (admin auth, payment-request
++submission, WhatsApp link-code generation).
++"""
++
++from slowapi import Limiter
++from slowapi.util import get_remote_address
++
++# Keyed by IP by default. Good enough for a solo-shop app at current
++# scale; a route that needs per-user limiting can pass its own key_func
++# to @limiter.limit(...).
++limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+diff --git a/backend/app/main.py b/backend/app/main.py
+index c997fc1..09102c9 100644
+--- a/backend/app/main.py
++++ b/backend/app/main.py
+@@ -5,9 +5,13 @@ from contextlib import asynccontextmanager
+ 
+ from fastapi import FastAPI
+ from fastapi.middleware.cors import CORSMiddleware
++from slowapi import _rate_limit_exceeded_handler
++from slowapi.errors import RateLimitExceeded
++from slowapi.middleware import SlowAPIMiddleware
+ 
+ from app.config import settings
+ from app.db import init_db
++from app.limiter import limiter
+ from app.routers import admin, billing, shop, whatsapp
+ from app.shop.errors import ShopError, shop_error_handler
+ 
+@@ -22,6 +26,13 @@ async def lifespan(app: FastAPI):
+ 
+ app = FastAPI(title="KraTte", lifespan=lifespan)
+ 
++# App-wide default of 200 req/min per IP (see app/limiter.py), plus
++# tighter per-route limits on abuse-prone endpoints (admin auth,
++# payment-request submission, WhatsApp link-code generation).
++app.state.limiter = limiter
++app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
++app.add_middleware(SlowAPIMiddleware)
++
+ origins = [o.strip().rstrip("/") for o in settings.allowed_origins.split(",") if o.strip()]
+ if not origins:
+     origins = ["*"]
+diff --git a/backend/app/routers/billing.py b/backend/app/routers/billing.py
+index 4f88642..8e6a428 100644
+--- a/backend/app/routers/billing.py
++++ b/backend/app/routers/billing.py
+@@ -8,12 +8,13 @@ profile row (stamping the token email so the founder can tell claims
+ apart).
+ """
+ 
+-from fastapi import APIRouter, Depends, HTTPException
++from fastapi import APIRouter, Depends, HTTPException, Request
+ from pydantic import BaseModel
+ from sqlalchemy.orm import Session
+ 
+ from app.db import get_db
+ from app.deps import get_current_user
++from app.limiter import limiter
+ from app.models import PaymentRequest, Profile
+ from app.telegram import notify_admin
+ 
+@@ -22,10 +23,19 @@ router = APIRouter(prefix="/api/v1/billing", tags=["billing"])
+ VALID_PLANS = {"pro", "business"}
+ VALID_NETWORKS = {"airtel", "mtn"}
+ 
++# The price a client claims to be paying is never trusted — it's computed
++# here from plan_requested. Keep in sync with frontend/components/account/
++# BillingSheet.tsx's PLANS constant; a mismatch is a display bug, not a
++# billing bug, since this table is what actually gets stored and reviewed.
++PLAN_PRICES = {"pro": 150.0, "business": 450.0}
++
+ 
+ class PaymentRequestCreate(BaseModel):
+     plan_requested: str
+-    amount: float
++    # Accepted for backwards compatibility with older frontend builds that
++    # still send it, but never trusted — see PLAN_PRICES above. Optional so
++    # a client can drop the field entirely going forward.
++    amount: float | None = None
+     currency: str = "ZMW"
+     momo_network: str
+     momo_reference: str
+@@ -46,7 +56,9 @@ def _out(row: PaymentRequest) -> dict:
+ 
+ 
+ @router.post("/payment-request")
++@limiter.limit("5/hour")
+ def submit_payment_request(
++    request: Request,
+     payload: PaymentRequestCreate,
+     user: dict = Depends(get_current_user),
+     db: Session = Depends(get_db),
+@@ -58,6 +70,11 @@ def submit_payment_request(
+     if not payload.momo_reference.strip():
+         raise HTTPException(400, "momo_reference is required")
+ 
++    # Canonical price for the plan, never whatever the client sent — a
++    # tampered amount would otherwise look legitimate to the admin
++    # reviewing it (see finding #1 of the security review).
++    amount = PLAN_PRICES[payload.plan_requested]
++
+     profile = db.get(Profile, user["id"])
+     if profile is None:
+         profile = Profile(id=user["id"], plan="free")
+@@ -69,7 +86,7 @@ def submit_payment_request(
+     request = PaymentRequest(
+         user_id=user["id"],
+         plan_requested=payload.plan_requested,
+-        amount=payload.amount,
++        amount=amount,
+         currency=payload.currency,
+         momo_network=payload.momo_network,
+         momo_reference=payload.momo_reference.strip(),
+@@ -82,7 +99,7 @@ def submit_payment_request(
+     notify_admin(
+         f"New payment claim\n"
+         f"*{user.get('email') or user['id']}* wants *{payload.plan_requested}*\n"
+-        f"{payload.amount} {payload.currency} via {payload.momo_network.upper()}\n"
++        f"{amount} {payload.currency} via {payload.momo_network.upper()}\n"
+         f"Ref: `{payload.momo_reference.strip()}`\n"
+         f"Review: `PATCH /api/v1/admin/payment-requests/{request.id}`"
+     )
+diff --git a/backend/app/routers/whatsapp.py b/backend/app/routers/whatsapp.py
+index 356e189..15b3835 100644
+--- a/backend/app/routers/whatsapp.py
++++ b/backend/app/routers/whatsapp.py
+@@ -25,6 +25,7 @@ from app.config import settings
+ from app.db import get_db
+ from app.deps import LimitReached
+ from app.deps import get_current_user
++from app.limiter import limiter
+ from app.models import Business, Profile, WhatsAppProcessedMessage
+ from app.shop_ask import low_stock_nudge, try_answer
+ from app.shop_capture import receive_sheet_photo, receive_sheet_text
+@@ -36,6 +37,27 @@ router = APIRouter(tags=["whatsapp"])
+ 
+ LINK_CODE_TTL_MINUTES = 15
+ 
++# Brute-force guard on the 6-digit link code: 1,000,000 possible codes and
++# a 15-minute TTL is fine against a slow, honest retry — not against a
++# script hammering guesses at a known number. Locks that sender out of
++# further attempts for a cooldown window after too many wrong guesses.
++# Process-local (fine for the single instance this runs on; a multi-
++# instance deployment would want this in the database instead).
++LINK_MAX_ATTEMPTS = 5
++LINK_LOCKOUT_MINUTES = 15
++_link_failures: dict[str, list[datetime]] = {}
++
++
++def _link_attempts_locked(sender: str) -> bool:
++    cutoff = datetime.utcnow() - timedelta(minutes=LINK_LOCKOUT_MINUTES)
++    recent = [t for t in _link_failures.get(sender, []) if t > cutoff]
++    _link_failures[sender] = recent
++    return len(recent) >= LINK_MAX_ATTEMPTS
++
++
++def _record_link_failure(sender: str) -> None:
++    _link_failures.setdefault(sender, []).append(datetime.utcnow())
++
+ LINK_COPY = (
+     "To link this number, open KraTte → Settings → WhatsApp, "
+     "grab your 6-digit code, and send it here."
+@@ -56,6 +78,10 @@ CODE_WRONG_COPY = (
+     "That code's wrong or expired — grab a fresh one from "
+     "Settings → WhatsApp in the app."
+ )
++LINK_LOCKED_COPY = (
++    "Too many wrong codes from this number — try again in a few minutes, "
++    "or grab a fresh code from Settings → WhatsApp in the app."
++)
+ 
+ 
+ class WhatsAppLinkCodeOut(BaseModel):
+@@ -68,7 +94,12 @@ class WhatsAppLinkCodeOut(BaseModel):
+ # ── Account linking (called from the app) ──────────────────────────────
+ 
+ @router.post("/api/v1/account/whatsapp/link-code")
+-def generate_link_code(user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
++@limiter.limit("10/hour")
++def generate_link_code(
++    request: Request,
++    user: dict = Depends(get_current_user),
++    db: Session = Depends(get_db),
++):
+     profile = db.get(Profile, user["id"])
+     if profile is None:
+         profile = Profile(id=user["id"], plan="free")
+@@ -197,7 +228,10 @@ def _handle_message(db: Session, sender: str, message: dict) -> None:
+ 
+     # --- linking: a 6-digit code as plain text (linked or not) ---
+     if msg_type == "text" and text_body.strip().isdigit() and len(text_body.strip()) == 6:
+-        if not _try_link(db, sender, text_body.strip()):
++        if _link_attempts_locked(sender):
++            send_text(sender, LINK_LOCKED_COPY)
++        elif not _try_link(db, sender, text_body.strip()):
++            _record_link_failure(sender)
+             send_text(sender, CODE_WRONG_COPY)
+         return
+ 
+@@ -291,5 +325,6 @@ def _try_link(db: Session, sender: str, code: str) -> bool:
+     candidate.whatsapp_link_code_expires = None
+     db.commit()
+ 
++    _link_failures.pop(sender, None)
+     send_text(sender, WELCOME_COPY)
+     return True
+diff --git a/backend/app/shop_capture.py b/backend/app/shop_capture.py
+index 7e24c99..3e63ec1 100644
+--- a/backend/app/shop_capture.py
++++ b/backend/app/shop_capture.py
+@@ -38,6 +38,19 @@ NOTHING_COPY = (
+     "and I'll ring them up."
+ )
+ 
++# A single photo/text capture auto-files straight into the ledger with no
++# human review — fine for a normal day's tally, but it means a
++# convincing-enough fake sheet (or a misread by the model) becomes real
++# money without anyone looking at it first. Amounts above this get held
++# back for a human to confirm in the app instead of being auto-filed.
++# See finding #5 of the security review — not a code bug, just capping
++# the blast radius of trusting a single AI read of a photo.
++LARGE_AMOUNT_ZMW = 5000.0
++NEEDS_CONFIRMATION_COPY = (
++    "That comes to K{amount:,.0f} — bigger than usual, so I've held it "
++    "back instead of filing it automatically. Add it in the app if it's right."
++)
++
+ 
+ def _ring_sale(db: Session, user: dict, business, draft: dict) -> dict:
+     lines, created = match_or_create_products(db, business, draft.get("line_items"))
+@@ -51,10 +64,17 @@ def _ring_sale(db: Session, user: dict, business, draft: dict) -> dict:
+             "date": occurred, "channel": "Retail", "payment": "Paid",
+             "notes": "From a WhatsApp tally",
+         })
+-        db.commit()
+     except ShopError as e:
+         db.rollback()
+         return {"status": "error", "message": e.message}
++
++    total = float(sale.amount_total or 0)
++    if total > LARGE_AMOUNT_ZMW:
++        db.rollback()
++        return {"status": "needs_confirmation",
++                "message": NEEDS_CONFIRMATION_COPY.format(amount=total)}
++
++    db.commit()
+     db.refresh(sale)
+     return {"status": "filed", "sale": {
+         "reference": sale.reference,
+@@ -74,6 +94,9 @@ def _file_supplier(db: Session, user: dict, business, draft: dict) -> dict:
+     amount = draft.get("amount")
+     if not amount or float(amount) <= 0:
+         return {"status": "resend", "message": NO_AMOUNT_COPY}
++    if float(amount) > LARGE_AMOUNT_ZMW:
++        return {"status": "needs_confirmation",
++                "message": NEEDS_CONFIRMATION_COPY.format(amount=float(amount))}
+     occurred = draft.get("occurred_on") or datetime.utcnow().date().isoformat()
+     name = (draft.get("party") or "").strip() or "Supplier note"
+     try:
+diff --git a/backend/requirements.txt b/backend/requirements.txt
+index 1a32838..e085113 100644
+--- a/backend/requirements.txt
++++ b/backend/requirements.txt
+@@ -10,3 +10,4 @@ httpx==0.28.1
+ pillow==11.1.0
+ python-dotenv==1.0.1
+ pytest==8.3.4
++slowapi==0.1.10
+diff --git a/backend/tests/test_billing.py b/backend/tests/test_billing.py
+index bd0df78..0b0b26c 100644
+--- a/backend/tests/test_billing.py
++++ b/backend/tests/test_billing.py
+@@ -12,11 +12,18 @@ from app import telegram
+ from app.config import settings
+ from app.db import Base
+ from app.deps import require_admin
++from app.limiter import limiter
+ from app.models import LedgerEntry, PaymentRequest, Profile
+ from app.routers import admin, billing
+ 
+ USER = {"id": "u1", "email": "m@test.zm"}
+ 
++# These tests call route handlers directly, bypassing the ASGI layer
++# slowapi's middleware runs in — so the rate limit added in
++# submit_payment_request (finding #4) is irrelevant noise here and is
++# tested for real, end-to-end, in test_rate_limit.py instead.
++limiter.enabled = False
++
+ 
+ @pytest.fixture
+ def db():
+@@ -32,7 +39,7 @@ def _claim(db, **kw):
+         plan_requested="pro", amount=150, currency="ZMW",
+         momo_network="airtel", momo_reference="MP123", **kw,
+     )
+-    return billing.submit_payment_request(payload, user=USER, db=db)
++    return billing.submit_payment_request(request=None, payload=payload, user=USER, db=db)
+ 
+ 
+ def test_claim_validation(db):
+@@ -40,17 +47,20 @@ def test_claim_validation(db):
+             "momo_reference": "MP123"}
+     with pytest.raises(HTTPException) as e:
+         billing.submit_payment_request(
+-            billing.PaymentRequestCreate(**{**base, "plan_requested": "free"}),
++            request=None,
++            payload=billing.PaymentRequestCreate(**{**base, "plan_requested": "free"}),
+             user=USER, db=db)
+     assert e.value.status_code == 400
+     with pytest.raises(HTTPException) as e:
+         billing.submit_payment_request(
+-            billing.PaymentRequestCreate(**{**base, "momo_network": "zamtel"}),
++            request=None,
++            payload=billing.PaymentRequestCreate(**{**base, "momo_network": "zamtel"}),
+             user=USER, db=db)
+     assert e.value.status_code == 400
+     with pytest.raises(HTTPException) as e:
+         billing.submit_payment_request(
+-            billing.PaymentRequestCreate(**{**base, "momo_reference": "  "}),
++            request=None,
++            payload=billing.PaymentRequestCreate(**{**base, "momo_reference": "  "}),
+             user=USER, db=db)
+     assert e.value.status_code == 400
+ 
+@@ -68,7 +78,7 @@ def test_mine_lists_only_mine(db):
+     _claim(db)
+     other = billing.PaymentRequestCreate(
+         plan_requested="business", amount=450, momo_network="mtn", momo_reference="X")
+-    billing.submit_payment_request(other, user={"id": "u2", "email": "x@y.zm"}, db=db)
++    billing.submit_payment_request(request=None, payload=other, user={"id": "u2", "email": "x@y.zm"}, db=db)
+     mine = billing.list_my_payment_requests(user=USER, db=db)
+     assert len(mine) == 1 and mine[0]["momo_reference"] == "MP123"
+ 
+diff --git a/backend/tests/test_rate_limit.py b/backend/tests/test_rate_limit.py
+new file mode 100644
+index 0000000..bac666c
+--- /dev/null
++++ b/backend/tests/test_rate_limit.py
+@@ -0,0 +1,70 @@
++"""Rate-limit check for /billing/payment-request (finding #4 of the
++security review). Unlike the other tests in this suite, this one goes
++through a real TestClient/ASGI app so slowapi's middleware actually runs
++— the direct-function-call style used elsewhere bypasses it entirely.
++"""
++
++from fastapi.testclient import TestClient
++from sqlalchemy import create_engine
++from sqlalchemy.orm import sessionmaker
++from sqlalchemy.pool import StaticPool
++
++from app import models  # noqa: F401 — registers tables on Base.metadata
++from app.db import Base, get_db
++from app.deps import get_current_user
++from app.limiter import limiter
++from app.main import app
++
++USER = {"id": "rl1", "email": "rl@test.zm"}
++
++
++def _client() -> TestClient:
++    # TestClient runs the app in a separate thread; a plain
++    # sqlite:///:memory: engine hands each thread its own empty database
++    # unless pinned to a single shared connection via StaticPool.
++    engine = create_engine(
++        "sqlite:///:memory:",
++        connect_args={"check_same_thread": False},
++        poolclass=StaticPool,
++    )
++    Base.metadata.create_all(engine)
++    session = sessionmaker(bind=engine)()
++
++    app.dependency_overrides[get_db] = lambda: session
++    app.dependency_overrides[get_current_user] = lambda: USER
++    limiter.enabled = True
++    limiter.reset()  # clean bucket, independent of any earlier test
++    return TestClient(app)
++
++
++def test_payment_request_is_rate_limited():
++    client = _client()
++    payload = {"plan_requested": "pro", "momo_network": "airtel", "momo_reference": "MP1"}
++    try:
++        for _ in range(5):
++            r = client.post("/api/v1/billing/payment-request", json=payload)
++            assert r.status_code == 200, r.text
++        r = client.post("/api/v1/billing/payment-request", json=payload)
++        assert r.status_code == 429
++    finally:
++        app.dependency_overrides.clear()
++        limiter.reset()
++
++
++def test_payment_request_amount_is_server_computed():
++    """Finding #1: a client-supplied amount is ignored — the price comes
++    from plan_requested, not the request body."""
++    client = _client()
++    payload = {
++        "plan_requested": "business",
++        "amount": 1,  # tampered — real price is 450
++        "momo_network": "mtn",
++        "momo_reference": "MP2",
++    }
++    try:
++        r = client.post("/api/v1/billing/payment-request", json=payload)
++        assert r.status_code == 200, r.text
++        assert r.json()["amount"] == 450.0
++    finally:
++        app.dependency_overrides.clear()
++        limiter.reset()
+diff --git a/backend/tests/test_shop_capture.py b/backend/tests/test_shop_capture.py
+index f8c390f..b66fe12 100644
+--- a/backend/tests/test_shop_capture.py
++++ b/backend/tests/test_shop_capture.py
+@@ -131,6 +131,36 @@ def test_shop_supplier_note_files_unpaid_expense(db, sent, monkeypatch):
+     assert "unpaid expense" in sent[-1][1]
+ 
+ 
++def test_shop_tally_over_threshold_is_held_not_filed(db, sent, monkeypatch):
++    """Finding #5 of the security review: an unusually large auto-read
++    amount is held back for the owner to confirm in the app, rather than
++    filed straight into Sales off a single AI read of a photo/text."""
++    _profile(db)
++    _business(db)
++    monkeypatch.setattr(cap, "classify_text", lambda text, slugs: _sheet(
++        line_items=[{"name": "Coke", "quantity": 500, "unit_price": 15.0}]))  # K7,500
++
++    router._handle_message(db, SENDER, {"type": "text", "text": {"body": "coke x500"}})
++
++    assert db.query(Order).count() == 0
++    assert "held it back" in sent[-1][1]
++    assert "K7,500" in sent[-1][1]
++
++
++def test_shop_supplier_note_over_threshold_is_held_not_filed(db, sent, monkeypatch):
++    _profile(db)
++    monkeypatch.setattr(cap, "classify_text", lambda text, slugs: {
++        "kind": "supplier_note", "party": "Zambeef", "amount": 9000.0,
++        "occurred_on": "2026-09-11", "confidence": "high",
++    })
++
++    router._handle_message(db, SENDER, {"type": "text", "text": {"body": "invoice"}})
++
++    assert db.query(LedgerEntry).count() == 0
++    assert "held it back" in sent[-1][1]
++    assert "K9,000" in sent[-1][1]
++
++
+ def test_shop_personal_receipt_is_refused(db, sent, monkeypatch):
+     _profile(db)
+     _business(db)
+-- 
+2.43.0
+

@@ -1,0 +1,479 @@
+From 46576808056b8bde6a72dcb5db6ab14f661dbbe3 Mon Sep 17 00:00:00 2001
+From: CHIBiNGA-1 <chibinga28@gmail.com>
+Date: Sun, 20 Sep 2026 00:20:55 +0000
+Subject: [PATCH] Sign-out relocation, minimal Billing screen, dark theme
+ picker
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Three independent changes, deliberately excluding any change to
+OverviewTab.tsx (that was a separate "declutter Overview" item from
+the original plan, unrelated to sign-out and not part of this):
+
+- Shell.tsx / SettingsTab.tsx: removed the always-visible "Out" /
+  "Sign out" buttons from the sidebar and mobile top bar. Sign-out
+  now lives as a deliberate action at the bottom of Settings.
+
+- BillingSheet.tsx: cut it down to what actually needs a decision.
+  Removed the intro paragraph and the second paragraph repeating the
+  same instructions. Removed the Network and Plan <select> dropdowns
+  entirely — both duplicated a choice already made by tapping a card
+  above (plan cards, and now the two MoMo network cards, which are
+  clickable/selectable instead of being static info panels). One
+  short instruction line replaces two paragraphs. Submit button and
+  success message shortened. Status pill colors now use theme
+  variables instead of hardcoded light-mode hex.
+
+- globals.css / inventory.css / SettingsTab.tsx: added a Theme picker
+  row (studio/paper/slate/night) and adaptive --glass/--glass-border/
+  --overlay/--shadow-glass variables so product pins and sheet
+  overlays render correctly in dark themes instead of staying
+  hardcoded to light-mode colors.
+
+Verified: npm run build compiles cleanly, no lint/type errors.
+---
+ frontend/app/globals.css                     |  20 +++-
+ frontend/app/inventory.css                   |  16 +--
+ frontend/components/account/BillingSheet.tsx | 116 +++++++------------
+ frontend/components/shop/SettingsTab.tsx     |  62 +++++++++-
+ frontend/components/shop/Shell.tsx           |  10 +-
+ 5 files changed, 131 insertions(+), 93 deletions(-)
+
+diff --git a/frontend/app/globals.css b/frontend/app/globals.css
+index a371778..fd999cc 100644
+--- a/frontend/app/globals.css
++++ b/frontend/app/globals.css
+@@ -29,6 +29,10 @@
+   --radius-card: 20px;
+   --radius-lg: 24px;
+   --radius-pill: 999px;
++  --glass: rgba(255, 253, 248, 0.94);
++  --glass-border: rgba(255, 255, 255, 0.7);
++  --overlay: rgba(20, 16, 12, 0.4);
++  --shadow-glass: 0 2px 8px rgba(40, 32, 26, 0.08);
+ }
+ 
+ :root[data-theme="paper"] {
+@@ -49,6 +53,10 @@
+   --radius-card: 20px;
+   --radius-lg: 24px;
+   --radius-pill: 999px;
++  --glass: rgba(250, 247, 239, 0.94);
++  --glass-border: rgba(255, 255, 255, 0.6);
++  --overlay: rgba(43, 36, 23, 0.4);
++  --shadow-glass: 0 2px 8px rgba(43, 36, 23, 0.1);
+ }
+ 
+ :root[data-theme="slate"] {
+@@ -69,6 +77,10 @@
+   --radius-card: 20px;
+   --radius-lg: 24px;
+   --radius-pill: 999px;
++  --glass: rgba(255, 255, 255, 0.94);
++  --glass-border: rgba(223, 229, 233, 0.7);
++  --overlay: rgba(20, 30, 36, 0.4);
++  --shadow-glass: 0 2px 8px rgba(20, 30, 36, 0.1);
+ }
+ 
+ :root[data-theme="night"] {
+@@ -89,6 +101,10 @@
+   --radius-card: 20px;
+   --radius-lg: 24px;
+   --radius-pill: 999px;
++  --glass: rgba(23, 28, 30, 0.92);
++  --glass-border: rgba(255, 255, 255, 0.1);
++  --overlay: rgba(0, 0, 0, 0.6);
++  --shadow-glass: 0 2px 8px rgba(0, 0, 0, 0.3);
+ }
+ 
+ * {
+@@ -207,7 +223,7 @@ body {
+ }
+ 
+ .btn-dark:hover {
+-  opacity: 0.88;
++  filter: brightness(1.15);
+ }
+ 
+ /* ── Bottom sheet (mobile modals) ───────────────────────────────────── */
+@@ -215,7 +231,7 @@ body {
+ .sheet-overlay {
+   position: fixed;
+   inset: 0;
+-  background: rgba(20, 16, 12, 0.4);
++  background: var(--overlay);
+   backdrop-filter: blur(2px);
+   z-index: 40;
+ }
+diff --git a/frontend/app/inventory.css b/frontend/app/inventory.css
+index 7fde9db..dcee685 100644
+--- a/frontend/app/inventory.css
++++ b/frontend/app/inventory.css
+@@ -489,10 +489,10 @@
+   font-size: 9.5px;
+   font-weight: 700;
+   letter-spacing: 0.02em;
+-  background: rgba(255, 253, 248, 0.94);
++  background: var(--glass);
+   backdrop-filter: blur(6px);
+   pointer-events: none;
+-  box-shadow: 0 2px 8px rgba(40, 32, 26, 0.08);
++  box-shadow: var(--shadow-glass);
+ }
+ 
+ .pin-flag.low { color: var(--amber); }
+@@ -506,10 +506,10 @@
+   display: grid;
+   place-items: center;
+   border-radius: 11px;
+-  background: rgba(255, 253, 248, 0.94);
++  background: var(--glass);
+   backdrop-filter: blur(6px);
+-  border: 1px solid rgba(255, 255, 255, 0.7);
+-  box-shadow: 0 2px 8px rgba(40, 32, 26, 0.08);
++  border: 1px solid var(--glass-border);
++  box-shadow: var(--shadow-glass);
+   transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+ }
+ 
+@@ -576,13 +576,13 @@
+   min-height: 32px;
+   padding: 7px 10px;
+   border-radius: var(--radius-pill);
+-  background: rgba(255, 253, 248, 0.95);
+-  border: 1px solid rgba(255, 255, 255, 0.75);
++  background: var(--glass);
++  border: 1px solid var(--glass-border);
+   backdrop-filter: blur(7px);
+   color: var(--ink);
+   font-size: 10.5px;
+   font-weight: 700;
+-  box-shadow: 0 3px 10px rgba(40, 32, 26, 0.08);
++  box-shadow: var(--shadow-glass);
+   transition: background-color 0.16s ease;
+ }
+ 
+diff --git a/frontend/components/account/BillingSheet.tsx b/frontend/components/account/BillingSheet.tsx
+index 2fbb7b2..cbcc6f9 100644
+--- a/frontend/components/account/BillingSheet.tsx
++++ b/frontend/components/account/BillingSheet.tsx
+@@ -41,9 +41,9 @@ const PLANS = [
+ type PlanId = "free" | "pro" | "business";
+ 
+ function statusStyle(status: string): { background: string; color: string } {
+-  if (status === "confirmed") return { background: "#dcefd7", color: "#1e5c2e" };
+-  if (status === "rejected") return { background: "#f6d1cc", color: "#7a2318" };
+-  return { background: "#f6e5b8", color: "#6b4e0a" };
++  if (status === "confirmed") return { background: "var(--accent-wash)", color: "var(--green)" };
++  if (status === "rejected") return { background: "var(--accent-wash)", color: "var(--red)" };
++  return { background: "var(--accent-wash)", color: "var(--amber)" };
+ }
+ 
+ export function BillingSheet({
+@@ -108,12 +108,7 @@ export function BillingSheet({
+ 
+   return (
+     <Sheet kicker="Billing" title="Upgrade your plan" onClose={onClose}>
+-      <p className="text-[13px] leading-relaxed text-muted">
+-        Pay via Airtel Money or MTN MoMo, submit your transaction reference below,
+-        and your plan activates once it&apos;s verified — usually within a few hours.
+-      </p>
+-
+-      <div className="mt-4 flex flex-col gap-2">
++      <div className="flex flex-col gap-2">
+         {PLANS.map((p) => {
+           const isCurrent = current === p.id;
+           const isSelected = selected === p.id;
+@@ -162,86 +157,59 @@ export function BillingSheet({
+       </div>
+ 
+       {current !== "business" && (
+-        <div className="mt-4">
+-          <div className="text-[14px] font-extrabold">
+-            Pay for {tier.name} — K{tier.price}/month
+-          </div>
+-          <div className="mt-2.5 grid grid-cols-2 gap-2">
+-            {(["airtel", "mtn"] as const).map((n) => (
+-              <div
+-                key={n}
+-                className="rounded-2xl border p-3.5"
+-                style={{ borderColor: "var(--line)", background: "var(--bg)" }}
+-              >
+-                <div className="kicker">{n === "airtel" ? "Airtel Money" : "MTN MoMo"}</div>
+-                <div className="tnum mt-1 text-[14px] font-black">{MOMO_NUMBERS[n]}</div>
+-              </div>
+-            ))}
++        <div className="mt-5">
++          <div className="grid grid-cols-2 gap-2">
++            {(["airtel", "mtn"] as const).map((n) => {
++              const isNetSelected = network === n;
++              return (
++                <button
++                  key={n}
++                  onClick={() => setNetwork(n)}
++                  className="rounded-2xl border p-3.5 text-left"
++                  style={{
++                    borderColor: isNetSelected ? "var(--ink)" : "var(--line)",
++                    background: "var(--bg)",
++                    outline: isNetSelected ? "1px solid var(--ink)" : "none",
++                  }}
++                >
++                  <div className="kicker">{n === "airtel" ? "Airtel Money" : "MTN MoMo"}</div>
++                  <div className="tnum mt-1 text-[14px] font-black">{MOMO_NUMBERS[n]}</div>
++                </button>
++              );
++            })}
+           </div>
+-          <p className="mt-2.5 text-[12px] leading-relaxed text-muted">
+-            Send <b>K{tier.price}</b> to the number above, then fill in the details
+-            from your confirmation SMS below.
+-          </p>
+ 
+           {success ? (
+             <div
+               className="mt-3 rounded-2xl p-4 text-[13px] font-semibold leading-relaxed"
+-              style={{ background: "#dcefd7", color: "#1e5c2e" }}
++              style={{ background: "var(--accent-wash)", color: "var(--green)" }}
+             >
+-              ✓ Submitted — we&apos;ll verify and activate your plan shortly. You can
+-              track the status below.
++              ✓ Submitted — we&apos;ll verify shortly.
+             </div>
+           ) : (
+             <div className="mt-3 flex flex-col gap-2.5">
+-              <div className="grid grid-cols-2 gap-2">
+-                <div>
+-                  <label className="kicker block">Network</label>
+-                  <select
+-                    className="field mt-1.5"
+-                    value={network}
+-                    onChange={(e) => setNetwork(e.target.value as "airtel" | "mtn")}
+-                  >
+-                    <option value="airtel">Airtel Money</option>
+-                    <option value="mtn">MTN MoMo</option>
+-                  </select>
+-                </div>
+-                <div>
+-                  <label className="kicker block">Plan</label>
+-                  <select
+-                    className="field mt-1.5"
+-                    value={selected}
+-                    onChange={(e) => setSelected(e.target.value as "pro" | "business")}
+-                  >
+-                    <option value="pro">Pro — K150/month</option>
+-                    <option value="business">Business — K450/month</option>
+-                  </select>
+-                </div>
+-              </div>
+-              <div>
+-                <label className="kicker block">Transaction reference</label>
+-                <input
+-                  className="field mt-1.5"
+-                  placeholder="e.g. MP240819.1234.A56789"
+-                  value={reference}
+-                  onChange={(e) => setReference(e.target.value)}
+-                />
+-              </div>
+-              <div>
+-                <label className="kicker block">Number you paid from (optional)</label>
+-                <input
+-                  className="field mt-1.5"
+-                  placeholder="e.g. 097XXXXXXX"
+-                  value={senderNumber}
+-                  onChange={(e) => setSenderNumber(e.target.value)}
+-                />
+-              </div>
++              <p className="text-[12px] leading-relaxed text-muted">
++                Send <b>K{tier.price}</b> to the number above, then confirm below.
++              </p>
++              <input
++                className="field"
++                placeholder="Transaction reference"
++                value={reference}
++                onChange={(e) => setReference(e.target.value)}
++              />
++              <input
++                className="field"
++                placeholder="Number you paid from (optional)"
++                value={senderNumber}
++                onChange={(e) => setSenderNumber(e.target.value)}
++              />
+               {error && (
+                 <p className="text-[13px] font-bold" style={{ color: "var(--red)" }}>
+                   {error}
+                 </p>
+               )}
+               <button onClick={submit} disabled={submitting} className="btn btn-accent w-full">
+-                {submitting ? "Submitting…" : "I've paid — submit for verification"}
++                {submitting ? "Submitting…" : "Submit for verification"}
+               </button>
+             </div>
+           )}
+diff --git a/frontend/components/shop/SettingsTab.tsx b/frontend/components/shop/SettingsTab.tsx
+index 0f04766..8207899 100644
+--- a/frontend/components/shop/SettingsTab.tsx
++++ b/frontend/components/shop/SettingsTab.tsx
+@@ -2,6 +2,7 @@
+ 
+ import { useCallback, useEffect, useState } from "react";
+ import { fetchMyPlan, PLAN_NAMES } from "@/lib/format";
++import { THEMES, applyTheme, getTheme, type Theme } from "@/lib/theme";
+ import { BillingSheet } from "../account/BillingSheet";
+ import { WhatsAppSheet } from "../account/WhatsAppSheet";
+ import {
+@@ -11,7 +12,13 @@ import {
+   type ShopBusiness,
+ } from "@/lib/shop";
+ 
+-export function SettingsTab({ onBack }: { onBack: () => void }) {
++export function SettingsTab({
++  onBack,
++  onSignOut,
++}: {
++  onBack: () => void;
++  onSignOut: () => void;
++}) {
+   const [business, setBusiness] = useState<ShopBusiness | null>(null);
+   const [plan, setPlan] = useState("free");
+   const [loading, setLoading] = useState(true);
+@@ -22,6 +29,7 @@ export function SettingsTab({ onBack }: { onBack: () => void }) {
+   const [saveError, setSaveError] = useState<string | null>(null);
+   const [billing, setBilling] = useState(false);
+   const [wa, setWa] = useState(false);
++  const [theme, setTheme] = useState<Theme>("studio");
+ 
+   const load = useCallback(async () => {
+     setLoading(true);
+@@ -40,6 +48,7 @@ export function SettingsTab({ onBack }: { onBack: () => void }) {
+ 
+   useEffect(() => {
+     load();
++    setTheme(getTheme());
+   }, [load]);
+ 
+   async function save() {
+@@ -60,6 +69,11 @@ export function SettingsTab({ onBack }: { onBack: () => void }) {
+     }
+   }
+ 
++  function pickTheme(t: Theme) {
++    setTheme(t);
++    applyTheme(t);
++  }
++
+   return (
+     <div>
+       <button
+@@ -145,6 +159,42 @@ export function SettingsTab({ onBack }: { onBack: () => void }) {
+             </span>
+           </div>
+ 
++          <div className="py-3.5" style={{ borderBottom: "1px solid var(--line)" }}>
++            <span className="block text-[14px] font-extrabold">Theme</span>
++            <div className="mt-2 flex gap-2">
++              {THEMES.map((t) => (
++                <button
++                  key={t.id}
++                  onClick={() => pickTheme(t.id)}
++                  className="flex flex-col items-center gap-1.5"
++                  aria-label={`${t.label} theme`}
++                >
++                  <span
++                    className="grid h-9 w-9 place-items-center rounded-xl border-2 transition-transform"
++                    style={{
++                      background: t.swatch,
++                      borderColor: theme === t.id ? "var(--accent)" : "var(--line)",
++                      transform: theme === t.id ? "scale(1.1)" : "scale(1)",
++                    }}
++                  >
++                    {theme === t.id && (
++                      <span
++                        className="h-2.5 w-2.5 rounded-full"
++                        style={{ background: "var(--accent)" }}
++                      />
++                    )}
++                  </span>
++                  <span
++                    className="text-[10px] font-bold"
++                    style={{ color: theme === t.id ? "var(--ink)" : "var(--muted)" }}
++                  >
++                    {t.label}
++                  </span>
++                </button>
++              ))}
++            </div>
++          </div>
++
+           <button
+             onClick={() => setBilling(true)}
+             className="flex w-full items-center gap-3 py-3.5 text-left"
+@@ -162,6 +212,7 @@ export function SettingsTab({ onBack }: { onBack: () => void }) {
+           <button
+             onClick={() => setWa(true)}
+             className="flex w-full items-center gap-3 py-3.5 text-left"
++            style={{ borderBottom: "1px solid var(--line)" }}
+           >
+             <span className="min-w-0 flex-1">
+               <span className="block text-[14px] font-extrabold">WhatsApp</span>
+@@ -171,6 +222,15 @@ export function SettingsTab({ onBack }: { onBack: () => void }) {
+             </span>
+             <span className="shrink-0 text-[12px] font-extrabold text-muted underline">Link</span>
+           </button>
++
++          <div className="py-4">
++            <button
++              onClick={onSignOut}
++              className="text-[13px] font-bold text-muted transition-colors hover:text-ink"
++            >
++              Sign out
++            </button>
++          </div>
+         </div>
+       )}
+ 
+diff --git a/frontend/components/shop/Shell.tsx b/frontend/components/shop/Shell.tsx
+index 8adfafb..ccc1762 100644
+--- a/frontend/components/shop/Shell.tsx
++++ b/frontend/components/shop/Shell.tsx
+@@ -127,9 +127,6 @@ export function ShopShell({ email, onSignOut }: { email: string; onSignOut: () =
+             {initials}
+           </div>
+           <span className="min-w-0 flex-1 truncate text-[12px] text-muted">{email || "Signed in"}</span>
+-          <button onClick={signOut} className="shrink-0 text-[11px] font-bold text-muted hover:text-ink">
+-            Out
+-          </button>
+         </div>
+       </aside>
+ 
+@@ -137,7 +134,7 @@ export function ShopShell({ email, onSignOut }: { email: string; onSignOut: () =
+       <main className="mx-auto w-full max-w-2xl px-5 pb-28 pt-6 md:max-w-none md:flex-1 md:px-0 md:pb-6 md:pt-0">
+         <div className="md:card md:p-8">
+           {/* Mobile-only top bar */}
+-          <div className="flex items-center justify-between md:hidden">
++          <div className="flex items-center md:hidden">
+             <div className="flex items-center gap-2.5">
+               <div
+                 className="grid h-9 w-9 place-items-center rounded-xl font-display text-[13px]"
+@@ -147,9 +144,6 @@ export function ShopShell({ email, onSignOut }: { email: string; onSignOut: () =
+               </div>
+               <span className="font-display text-[17px]">KraTte</span>
+             </div>
+-            <button onClick={signOut} className="text-xs font-bold text-muted underline">
+-              Sign out
+-            </button>
+           </div>
+ 
+           <div className="mt-5 md:mt-0">
+@@ -205,7 +199,7 @@ export function ShopShell({ email, onSignOut }: { email: string; onSignOut: () =
+                 onReviewInventory={goLowStock}
+               />
+             ) : (
+-              <SettingsTab onBack={() => setTab("overview")} />
++              <SettingsTab onBack={() => setTab("overview")} onSignOut={signOut} />
+             )}
+           </div>
+         </div>
+-- 
+2.43.0
+

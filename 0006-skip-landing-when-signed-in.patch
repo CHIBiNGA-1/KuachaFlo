@@ -1,0 +1,69 @@
+From 88e5df54f848a6f0091d38f638f3f86d1c2d71a7 Mon Sep 17 00:00:00 2001
+From: CHIBiNGA-1 <chibinga28@gmail.com>
+Date: Mon, 21 Sep 2026 21:21:07 +0000
+Subject: [PATCH] Skip the landing page for already-signed-in visitors
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+app/page.tsx: once the session check confirms a real session, redirect
+straight to /app instead of waiting for a button click.
+
+This still keeps the property Google's reviewers needed: the public
+content renders first, on every visit, with no auth check in the way
+— the redirect only fires after that content is already on screen and
+only once a session is actually confirmed, so a logged-out visitor, a
+crawler, or a reviewer with no cookies never sees anything but the
+full public page. This only changes what happens next for someone who
+was already signed in.
+
+Verified: npm run build compiles cleanly.
+---
+ frontend/app/page.tsx | 22 ++++++++++++++++------
+ 1 file changed, 16 insertions(+), 6 deletions(-)
+
+diff --git a/frontend/app/page.tsx b/frontend/app/page.tsx
+index cea8303..b5aa531 100644
+--- a/frontend/app/page.tsx
++++ b/frontend/app/page.tsx
+@@ -2,21 +2,31 @@
+ 
+ import Link from "next/link";
+ import { useEffect, useState } from "react";
++import { useRouter } from "next/navigation";
+ import { supabase, supabaseConfigured } from "@/lib/supabase";
+ import { applyTheme } from "@/lib/theme";
+ 
+ export default function LandingPage() {
+-  // No auth check gates anything on this page — it must render the same
+-  // for a logged-out visitor, a crawler, or a reviewer with no session at
+-  // all. The only thing session state changes is where the button below
+-  // points, and that's a client-side enhancement, not a redirect.
++  // This page must render its full public content on the very first
++  // paint, with no auth check in the way — that's the whole point (see
++  // the /app split). The router.replace below only ever runs *after*
++  // that content is already on screen and only once we've confirmed a
++  // real session, so a logged-out visitor, a crawler, or a reviewer
++  // never sees anything but the public page. A signed-in visitor gets
++  // bounced straight into the app instead of having to click through.
++  const router = useRouter();
+   const [signedIn, setSignedIn] = useState(false);
+ 
+   useEffect(() => {
+     applyTheme();
+     if (!supabase) return;
+-    supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
+-  }, []);
++    supabase.auth.getSession().then(({ data }) => {
++      if (data.session) {
++        setSignedIn(true);
++        router.replace("/app");
++      }
++    });
++  }, [router]);
+ 
+   return (
+     <div style={{ background: "var(--bg)", color: "var(--ink)" }} className="min-h-screen">
+-- 
+2.43.0
+

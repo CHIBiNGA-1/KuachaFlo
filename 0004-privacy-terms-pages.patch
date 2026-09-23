@@ -1,0 +1,288 @@
+From e5f6bcecd90500e0a509e0093ed74c42af263241 Mon Sep 17 00:00:00 2001
+From: CHIBiNGA-1 <chibinga28@gmail.com>
+Date: Mon, 21 Sep 2026 03:33:13 +0000
+Subject: [PATCH] Add Privacy Policy and Terms of Service pages
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+frontend/app/privacy/page.tsx and frontend/app/terms/page.tsx — needed
+for Google's OAuth consent screen branding (Application home page,
+Privacy policy, Terms of service links), which is what actually gets
+the consent screen to show "KraTte" instead of the raw Supabase project
+domain.
+
+Content reflects what the app actually does — Supabase for auth/data,
+Gemini for reading WhatsApp photos/text, Meta's WhatsApp Business
+Platform, manual MoMo payment verification, no ad sales — rather than
+generic boilerplate, since Google's verification checks that the
+policy matches the app's real data use. Both pages have a placeholder
+contact email (PUT-YOUR-CONTACT-EMAIL-HERE) that needs a real address
+before publishing.
+
+Once pushed, the URLs are:
+https://kratte.vercel.app/privacy
+https://kratte.vercel.app/terms
+
+Not legal advice — worth a lawyer's look before wide public launch,
+but accurately describes the current data flows for now.
+
+Verified: npm run build compiles cleanly, both routes render as static
+pages.
+---
+ frontend/app/privacy/page.tsx | 123 ++++++++++++++++++++++++++++++++++
+ frontend/app/terms/page.tsx   | 112 +++++++++++++++++++++++++++++++
+ 2 files changed, 235 insertions(+)
+ create mode 100644 frontend/app/privacy/page.tsx
+ create mode 100644 frontend/app/terms/page.tsx
+
+diff --git a/frontend/app/privacy/page.tsx b/frontend/app/privacy/page.tsx
+new file mode 100644
+index 0000000..e81cf52
+--- /dev/null
++++ b/frontend/app/privacy/page.tsx
+@@ -0,0 +1,123 @@
++export const metadata = { title: "Privacy Policy — KraTte" };
++
++export default function PrivacyPage() {
++  return (
++    <main
++      style={{ background: "var(--bg)", color: "var(--ink)", minHeight: "100vh" }}
++      className="px-5 py-10"
++    >
++      <div className="mx-auto max-w-[640px]">
++        <div className="kicker">Legal</div>
++        <h1 className="mt-1 font-display text-[28px]">Privacy Policy</h1>
++        <p className="mt-1 text-[13px] text-muted">Last updated: September 2026</p>
++
++        <div className="mt-6 flex flex-col gap-5 text-[14px] leading-relaxed">
++          <p>
++            KraTte ("we", "us") helps shop owners track inventory, orders, and
++            expenses. This page explains what information we collect and how
++            it's used. It applies to the KraTte web app and its WhatsApp
++            integration.
++          </p>
++
++          <section>
++            <h2 className="font-display text-[18px]">Information we collect</h2>
++            <ul className="mt-2 list-disc pl-5">
++              <li>
++                <b>Account info</b> — your email address, via Supabase Auth
++                (email/password or "Sign in with Google").
++              </li>
++              <li>
++                <b>Shop data</b> — products, orders, customers, expenses, and
++                suppliers you enter into the app.
++              </li>
++              <li>
++                <b>WhatsApp number</b> — only if you choose to link WhatsApp,
++                so we can receive and reply to your messages.
++              </li>
++              <li>
++                <b>Photos and messages you send us on WhatsApp</b> — sales
++                tallies or supplier notes you photograph or type, so we can
++                read them into your ledger.
++              </li>
++              <li>
++                <b>Payment claims</b> — the mobile money network, transaction
++                reference, and (optionally) the number you paid from, when you
++                submit a plan upgrade. We do not collect or store card or bank
++                account numbers.
++              </li>
++            </ul>
++          </section>
++
++          <section>
++            <h2 className="font-display text-[18px]">How we use it</h2>
++            <p className="mt-2">
++              To run the app: storing your shop's records, showing them back
++              to you, and turning a WhatsApp photo or message into a ledger
++              entry. We don't sell your data or use it for advertising.
++            </p>
++          </section>
++
++          <section>
++            <h2 className="font-display text-[18px]">Who else sees it</h2>
++            <ul className="mt-2 list-disc pl-5">
++              <li>
++                <b>Supabase</b> — hosts our database and handles sign-in.
++              </li>
++              <li>
++                <b>Render</b> — hosts our backend server.
++              </li>
++              <li>
++                <b>Google (Gemini API)</b> — reads the photos and text you
++                send via WhatsApp to pull out items and amounts. Google
++                processes this on our behalf and doesn't use it to train
++                public models.
++              </li>
++              <li>
++                <b>Meta (WhatsApp Business Platform)</b> — delivers the
++                messages between you and KraTte, if you link WhatsApp.
++              </li>
++            </ul>
++          </section>
++
++          <section>
++            <h2 className="font-display text-[18px]">Data retention & deletion</h2>
++            <p className="mt-2">
++              We keep your data for as long as your account is active. To
++              delete your account and its data, email us at the address
++              below.
++            </p>
++          </section>
++
++          <section>
++            <h2 className="font-display text-[18px]">Children</h2>
++            <p className="mt-2">
++              KraTte is a business tool and isn't directed at children.
++            </p>
++          </section>
++
++          <section>
++            <h2 className="font-display text-[18px]">Changes</h2>
++            <p className="mt-2">
++              If this policy changes in a meaningful way, we'll update the
++              date above.
++            </p>
++          </section>
++
++          <section>
++            <h2 className="font-display text-[18px]">Contact</h2>
++            <p className="mt-2">
++              Questions about this policy or your data:{" "}
++              <a
++                href="mailto:PUT-YOUR-CONTACT-EMAIL-HERE"
++                style={{ color: "var(--ink)", textDecoration: "underline" }}
++              >
++                PUT-YOUR-CONTACT-EMAIL-HERE
++              </a>
++              .
++            </p>
++          </section>
++        </div>
++      </div>
++    </main>
++  );
++}
+diff --git a/frontend/app/terms/page.tsx b/frontend/app/terms/page.tsx
+new file mode 100644
+index 0000000..85d7a00
+--- /dev/null
++++ b/frontend/app/terms/page.tsx
+@@ -0,0 +1,112 @@
++export const metadata = { title: "Terms of Service — KraTte" };
++
++export default function TermsPage() {
++  return (
++    <main
++      style={{ background: "var(--bg)", color: "var(--ink)", minHeight: "100vh" }}
++      className="px-5 py-10"
++    >
++      <div className="mx-auto max-w-[640px]">
++        <div className="kicker">Legal</div>
++        <h1 className="mt-1 font-display text-[28px]">Terms of Service</h1>
++        <p className="mt-1 text-[13px] text-muted">Last updated: September 2026</p>
++
++        <div className="mt-6 flex flex-col gap-5 text-[14px] leading-relaxed">
++          <p>
++            These terms cover your use of KraTte, a tool for tracking
++            inventory, orders, and expenses for a small shop. By creating an
++            account, you agree to them.
++          </p>
++
++          <section>
++            <h2 className="font-display text-[18px]">The service</h2>
++            <p className="mt-2">
++              KraTte lets you record sales, expenses, and stock, and
++              optionally capture them via WhatsApp using photo/text
++              recognition. We aim to keep the service available and accurate,
++              but don't guarantee it will be error-free or uninterrupted.
++            </p>
++          </section>
++
++          <section>
++            <h2 className="font-display text-[18px]">Your account</h2>
++            <p className="mt-2">
++              You're responsible for the accuracy of the data you enter and
++              for keeping your login secure. You're responsible for activity
++              that happens under your account.
++            </p>
++          </section>
++
++          <section>
++            <h2 className="font-display text-[18px]">Acceptable use</h2>
++            <p className="mt-2">
++              Use KraTte for your own legitimate business record-keeping.
++              Don't use it to submit fraudulent payment claims, attempt to
++              access another business's data, or abuse the WhatsApp
++              integration.
++            </p>
++          </section>
++
++          <section>
++            <h2 className="font-display text-[18px]">Plans and payment</h2>
++            <p className="mt-2">
++              Paid plans are activated after we manually verify a submitted
++              mobile money payment against the claimed amount and reference.
++              This review isn't instant. We reserve the right to decline a
++              claim that doesn't match an actual payment.
++            </p>
++          </section>
++
++          <section>
++            <h2 className="font-display text-[18px]">AI-assisted capture</h2>
++            <p className="mt-2">
++              Sales and expenses captured from a photo or WhatsApp message are
++              read automatically and may occasionally be misread. Review
++              what's recorded — we're not liable for losses from a
++              misclassified entry.
++            </p>
++          </section>
++
++          <section>
++            <h2 className="font-display text-[18px]">Disclaimer & liability</h2>
++            <p className="mt-2">
++              KraTte is provided "as is," without warranties of any kind. To
++              the extent permitted by law, we aren't liable for indirect or
++              consequential damages arising from your use of the service.
++            </p>
++          </section>
++
++          <section>
++            <h2 className="font-display text-[18px]">Ending your account</h2>
++            <p className="mt-2">
++              You can stop using KraTte at any time. We may suspend or end an
++              account that violates these terms.
++            </p>
++          </section>
++
++          <section>
++            <h2 className="font-display text-[18px]">Changes</h2>
++            <p className="mt-2">
++              We may update these terms as the service evolves. Continued use
++              after a change means you accept the update.
++            </p>
++          </section>
++
++          <section>
++            <h2 className="font-display text-[18px]">Contact</h2>
++            <p className="mt-2">
++              Questions about these terms:{" "}
++              <a
++                href="mailto:PUT-YOUR-CONTACT-EMAIL-HERE"
++                style={{ color: "var(--ink)", textDecoration: "underline" }}
++              >
++                PUT-YOUR-CONTACT-EMAIL-HERE
++              </a>
++              .
++            </p>
++          </section>
++        </div>
++      </div>
++    </main>
++  );
++}
+-- 
+2.43.0
+

@@ -1,0 +1,135 @@
+From 956f2bf990c5fab9ad31e28de6d2e6d8446f54e7 Mon Sep 17 00:00:00 2001
+From: CHIBiNGA-1 <chibinga28@gmail.com>
+Date: Sun, 20 Sep 2026 00:57:41 +0000
+Subject: [PATCH] Fix modal scrollbar poking past the rounded corner
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Sheet.tsx / globals.css: .sheet had border-radius, padding, and
+overflow-y: auto all on the same element, so its scrollbar rendered
+flush against the border right where the corner curves — a straight
+scrollbar can't follow that curve, so it visually pokes past it on
+any sheet with scrollable content (product/order forms, longer
+lists, etc).
+
+Split it: .sheet is now just the rounded, clipping shell
+(overflow: hidden, no height cap of its own), and a new inner
+.sheet-scroll div does the actual scrolling (max-height + overflow-y:
+auto + the p-5 padding that used to live on .sheet). Because the
+scrollbar now belongs to a child of an overflow:hidden rounded
+parent, the browser clips it to the rounded shape instead of letting
+it overhang the corner.
+
+Also gave sheets their own thinner, themed scrollbar (6px vs the
+site-wide 10px) instead of inheriting the global one, and added
+overscroll-behavior: contain so scrolling to the end of a sheet
+doesn't chain into scrolling the page behind the overlay.
+
+Verified: npm run build compiles cleanly.
+---
+ frontend/app/globals.css      | 22 ++++++++++++++++++-
+ frontend/components/Sheet.tsx | 40 ++++++++++++++++++-----------------
+ 2 files changed, 42 insertions(+), 20 deletions(-)
+
+diff --git a/frontend/app/globals.css b/frontend/app/globals.css
+index fd999cc..1e796cf 100644
+--- a/frontend/app/globals.css
++++ b/frontend/app/globals.css
+@@ -247,8 +247,25 @@ body {
+   box-shadow: var(--shadow-pop);
+   border: 1px solid var(--line);
+   border-bottom: none;
++  /* Clips to the rounded shape; the child below does the actual
++     scrolling, so its scrollbar never pokes past the curved corner. */
++  overflow: hidden;
++}
++
++.sheet-scroll {
+   max-height: 92vh;
+   overflow-y: auto;
++  overscroll-behavior: contain;
++  scrollbar-width: thin; /* Firefox */
++}
++
++.sheet-scroll::-webkit-scrollbar {
++  width: 6px;
++}
++
++.sheet-scroll::-webkit-scrollbar-thumb {
++  background: var(--line);
++  border-radius: 999px;
+ }
+ 
+ @media (min-width: 768px) {
+@@ -259,10 +276,13 @@ body {
+     top: 50%;
+     transform: translate(-50%, -50%);
+     width: min(480px, calc(100vw - 48px));
+-    max-height: 88vh;
+     border-radius: var(--radius-lg);
+     border-bottom: 1px solid var(--line);
+   }
++
++  .sheet-scroll {
++    max-height: 88vh;
++  }
+ }
+ 
+ /* ── Scrollbar polish (desktop) ─────────────────────────────────────── */
+diff --git a/frontend/components/Sheet.tsx b/frontend/components/Sheet.tsx
+index af449ba..fabb31b 100644
+--- a/frontend/components/Sheet.tsx
++++ b/frontend/components/Sheet.tsx
+@@ -29,27 +29,29 @@ export function Sheet({
+       className="sheet-overlay"
+       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+     >
+-      <div className="sheet p-5" role="dialog" aria-modal="true" aria-label={title}>
+-        <div className="flex items-start justify-between gap-3">
+-          <div>
+-            <div className="kicker">{kicker}</div>
+-            <h3 className="mt-1 font-display text-[24px]">{title}</h3>
++      <div className="sheet" role="dialog" aria-modal="true" aria-label={title}>
++        <div className="sheet-scroll p-5">
++          <div className="flex items-start justify-between gap-3">
++            <div>
++              <div className="kicker">{kicker}</div>
++              <h3 className="mt-1 font-display text-[24px]">{title}</h3>
++            </div>
++            <button
++              onClick={onClose}
++              className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-lg text-muted"
++              style={{ background: "var(--bg)" }}
++              aria-label="Close"
++            >
++              ×
++            </button>
+           </div>
+-          <button
+-            onClick={onClose}
+-            className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-lg text-muted"
+-            style={{ background: "var(--bg)" }}
+-            aria-label="Close"
+-          >
+-            ×
+-          </button>
++          <div className="mt-4">{children}</div>
++          {foot && (
++            <div className="mt-5">
++              <small className="text-[11px] text-muted">{foot}</small>
++            </div>
++          )}
+         </div>
+-        <div className="mt-4">{children}</div>
+-        {foot && (
+-          <div className="mt-5">
+-            <small className="text-[11px] text-muted">{foot}</small>
+-          </div>
+-        )}
+       </div>
+     </div>
+   );
+-- 
+2.43.0
+
