@@ -222,7 +222,7 @@ export function ShopShell({ email, onSignOut }: { email: string; onSignOut: () =
                 onReviewInventory={goLowStock}
               />
             ) : (
-              <SettingsTab onBack={() => setTab("overview")} />
+              <SettingsTab onBack={() => setTab("overview")} onSignOut={signOut} />
             )}
           </div>
         </div>
