@@ -152,8 +152,12 @@ export function ShopShell({ email, onSignOut }: { email: string; onSignOut: () =
               </div>
               <span className="font-display text-[17px]">KraTte</span>
             </div>
-            <button onClick={signOut} className="text-xs font-bold text-muted underline">
-              Sign out
+            <button
+              onClick={() => setTab("settings")}
+              className="grid h-8 w-8 place-items-center rounded-lg text-muted"
+              aria-label="Settings"
+            >
+              <GlyphDots size={18} />
             </button>
           </div>
 
