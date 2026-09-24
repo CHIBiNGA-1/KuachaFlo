@@ -132,9 +132,6 @@ export function ShopShell({ email, onSignOut }: { email: string; onSignOut: () =
             {initials}
           </div>
           <span className="min-w-0 flex-1 truncate text-[12px] text-muted">{email || "Signed in"}</span>
-          <button onClick={signOut} className="shrink-0 text-[11px] font-bold text-muted hover:text-ink">
-            Out
-          </button>
         </div>
       </aside>
 
@@ -152,25 +149,18 @@ export function ShopShell({ email, onSignOut }: { email: string; onSignOut: () =
               </div>
               <span className="font-display text-[17px]">KraTte</span>
             </div>
-            <button
-              onClick={() => setTab("settings")}
-              className="grid h-8 w-8 place-items-center rounded-lg text-muted"
-              aria-label="Settings"
-            >
-              <GlyphDots size={18} />
-            </button>
+            <span className="text-[11px] font-semibold text-muted">
+              {plan ? `${PLAN_NAMES[plan] || plan} plan` : ""}
+            </span>
           </div>
 
-          {/* Desktop-only: quiet plan reminder, top-right. Text only, on
-              purpose — a badge here would compete with the page's own
-              heading for attention it doesn't need. */}
+          {/* Desktop-only: quiet plan reminder, top-right. Plain text —
+              not a button, not a link. Purely informational; nothing
+              here should look or behave like it's clickable. */}
           <div className="hidden justify-end md:flex">
-            <button
-              onClick={() => setTab("settings")}
-              className="text-[11px] font-semibold text-muted hover:text-ink"
-            >
+            <span className="text-[11px] font-semibold text-muted">
               {plan ? `${PLAN_NAMES[plan] || plan} plan` : "\u00A0"}
-            </button>
+            </span>
           </div>
 
           <div className="mt-5 md:mt-0">
