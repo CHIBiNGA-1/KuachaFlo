@@ -78,6 +78,15 @@ def get_products(
     return products.list_products(db, business.id, tab=tab, q=q, limit=limit)
 
 
+@router.get("/products/suggest-category")
+def get_suggested_category(
+    name: str = Query(..., min_length=1, max_length=500),
+    db: Session = Depends(get_db), user: dict = Depends(get_current_user),
+):
+    business = _require_shop(db, user)
+    return products.suggest_category(db, business.id, name)
+
+
 @router.post("/products", status_code=201)
 def create_product(
     payload: dict = Body(...),

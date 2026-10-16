@@ -1,5 +1,6 @@
 "use client";
 
+import { useResync } from "@/lib/offline/hooks";
 import { useCallback, useEffect, useState } from "react";
 import { fetchMyPlan, PLAN_NAMES } from "@/lib/format";
 import { THEMES, applyTheme, getTheme, type Theme } from "@/lib/theme";
@@ -35,7 +36,7 @@ export function SettingsTab({
     setLoading(true);
     setError(null);
     try {
-      const [b, p] = await Promise.all([getBusiness(), fetchMyPlan()]);
+      const [b, p] = await Promise.all([getBusiness(), fetchMyPlan().catch(() => "free")]);
       setBusiness(b);
       setPlan(p);
       setName(b.name);
@@ -50,6 +51,7 @@ export function SettingsTab({
     load();
     setTheme(getTheme());
   }, [load]);
+  useResync(load);
 
   async function save() {
     if (!name.trim()) {

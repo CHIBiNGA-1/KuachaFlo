@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useSyncStatus } from "@/lib/offline/hooks";
 import { getBusiness } from "@/lib/shop";
 import type { PartyKind } from "@/lib/shop";
 import { fetchMyPlan, PLAN_NAMES } from "@/lib/format";
@@ -48,6 +49,31 @@ const NAV: { id: Tab; label: string; glyph: (a: { size?: number }) => React.Reac
 
 // The bottom bar on mobile stays to five items — the rest live under People.
 const MOBILE_NAV: Tab[] = ["overview", "sales", "purchases", "inventory", "settings"];
+
+/** Invisible when everything is normal. Only speaks when it has
+ * something honest to say: you're offline (work is safe), changes are
+ * still syncing, or some change couldn't be applied. */
+function SyncPill() {
+  const { online, pending, failed } = useSyncStatus();
+  if (online && pending === 0 && failed === 0) return null;
+  const text = failed > 0
+    ? `${failed} change${failed === 1 ? "" : "s"} couldn't sync`
+    : !online
+    ? pending > 0 ? `Offline · ${pending} saved on this device` : "Offline · working from this device"
+    : `Syncing ${pending}…`;
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-pill border border-line px-2.5 py-1 text-[11px] font-semibold text-muted"
+      role="status"
+    >
+      <span
+        className="h-1.5 w-1.5 rounded-full"
+        style={{ background: failed > 0 ? "#c98f6b" : online ? "var(--accent)" : "#a8a29e" }}
+      />
+      {text}
+    </span>
+  );
+}
 
 export function ShopShell({ email, onSignOut }: { email: string; onSignOut: () => void }) {
   const [tab, setTab] = useState<Tab>("overview");
@@ -149,15 +175,19 @@ export function ShopShell({ email, onSignOut }: { email: string; onSignOut: () =
               </div>
               <span className="font-display text-[17px]">KraTte</span>
             </div>
-            <span className="text-[11px] font-semibold text-muted">
-              {plan ? `${PLAN_NAMES[plan] || plan} plan` : ""}
+            <span className="flex items-center gap-2">
+              <SyncPill />
+              <span className="text-[11px] font-semibold text-muted">
+                {plan ? `${PLAN_NAMES[plan] || plan} plan` : ""}
+              </span>
             </span>
           </div>
 
           {/* Desktop-only: quiet plan reminder, top-right. Plain text —
               not a button, not a link. Purely informational; nothing
               here should look or behave like it's clickable. */}
-          <div className="hidden justify-end md:flex">
+          <div className="hidden items-center justify-end gap-3 md:flex">
+            <SyncPill />
             <span className="text-[11px] font-semibold text-muted">
               {plan ? `${PLAN_NAMES[plan] || plan} plan` : "\u00A0"}
             </span>

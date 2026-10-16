@@ -1,5 +1,6 @@
 "use client";
 
+import { useResync } from "@/lib/offline/hooks";
 import { useCallback, useEffect, useState } from "react";
 import {
   ArrowUpRight,
@@ -52,6 +53,7 @@ export function OverviewTab({
   useEffect(() => {
     load();
   }, [load]);
+  useResync(load);
 
   const attention = data ? data.low_stock.length + data.out_of_stock_count : 0;
 

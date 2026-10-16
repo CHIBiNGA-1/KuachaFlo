@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { money } from "@/lib/format";
 import { Sheet } from "../Sheet";
 import {
@@ -10,6 +10,7 @@ import {
   createProduct,
   deleteProduct,
   stockState,
+  suggestCategory,
   tintFor,
   updateProduct,
   type Product,
@@ -33,6 +34,7 @@ export function ProductSheet({
   const [name, setName] = useState(product?.name || "");
   const [sku, setSku] = useState(product?.sku || "");
   const [category, setCategory] = useState(product?.category || "Other");
+  const categoryTouched = useRef(!isNew); // existing products already have a real category
   const [price, setPrice] = useState(String(product?.price ?? ""));
   const [cost, setCost] = useState(String(product?.cost ?? ""));
   const [stock, setStock] = useState(String(product?.stock ?? ""));
@@ -47,6 +49,17 @@ export function ProductSheet({
 
   const margin =
     Number(price) > 0 ? ((Number(price) - Number(cost || 0)) / Number(price)) * 100 : 0;
+
+  // Auto-fill the category as the name is typed — a glance, not a chore.
+  // Stops the moment the user picks a category themselves.
+  useEffect(() => {
+    if (!isNew || categoryTouched.current || name.trim().length < 2) return;
+    const timer = setTimeout(async () => {
+      const guess = await suggestCategory(name.trim());
+      if (guess && !categoryTouched.current) setCategory(guess);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [name, isNew]);
 
   async function save() {
     if (!name.trim() || !sku.trim()) {
@@ -212,7 +225,14 @@ export function ProductSheet({
             </div>
             <div>
               <label className="kicker block">Category</label>
-              <select className="field mt-1.5" value={category} onChange={(e) => setCategory(e.target.value)}>
+              <select
+                className="field mt-1.5"
+                value={category}
+                onChange={(e) => {
+                  categoryTouched.current = true;
+                  setCategory(e.target.value);
+                }}
+              >
                 {SHOP_CATEGORIES.map((c) => (
                   <option key={c} value={c}>
                     {c}

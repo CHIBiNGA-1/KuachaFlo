@@ -1,5 +1,6 @@
 "use client";
 
+import { useResync } from "@/lib/offline/hooks";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatDay, money } from "@/lib/format";
 import { ShopError, listExpenses, type ShopExpense } from "@/lib/shop";
@@ -39,6 +40,7 @@ export function ExpensesTab({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     load();
   }, [load]);
+  useResync(load);
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
