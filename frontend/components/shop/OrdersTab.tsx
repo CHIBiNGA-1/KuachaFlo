@@ -1,5 +1,6 @@
 "use client";
 
+import { useResync } from "@/lib/offline/hooks";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatDay, money } from "@/lib/format";
 import {
@@ -81,6 +82,7 @@ export function OrdersTab({ kind }: { kind: OrderKind }) {
   useEffect(() => {
     load();
   }, [load]);
+  useResync(load);
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();

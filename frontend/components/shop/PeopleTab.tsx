@@ -1,5 +1,6 @@
 "use client";
 
+import { useResync } from "@/lib/offline/hooks";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { money } from "@/lib/format";
 import {
@@ -102,6 +103,7 @@ export function PeopleTab({ kind, onBack }: { kind: PartyKind; onBack: () => voi
   useEffect(() => {
     load();
   }, [load]);
+  useResync(load);
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();

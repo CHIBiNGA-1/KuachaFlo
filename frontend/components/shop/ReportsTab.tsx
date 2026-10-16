@@ -1,5 +1,6 @@
 "use client";
 
+import { useResync } from "@/lib/offline/hooks";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { money } from "@/lib/format";
 import { CAT_COLORS, buildChart, type ChartRow } from "@/lib/chart";
@@ -97,6 +98,7 @@ export function ReportsTab({
   useEffect(() => {
     load();
   }, [load]);
+  useResync(load);
 
   const stats = useMemo(() => {
     const dates = windowDates(period);

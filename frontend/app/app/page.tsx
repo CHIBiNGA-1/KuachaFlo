@@ -2,29 +2,39 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Session } from "@supabase/supabase-js";
-import { supabase, supabaseConfigured } from "@/lib/supabase";
+import { bootSession, supabase, supabaseConfigured } from "@/lib/supabase";
 import { applyTheme } from "@/lib/theme";
 import { ShopShell } from "@/components/shop/Shell";
 
+type Session = { email: string } | null | undefined;
+
 export default function Home() {
   const router = useRouter();
-  const [session, setSession] = useState<Session | null | undefined>(undefined);
+  const [session, setSession] = useState<Session>(undefined);
 
   const refreshSession = useCallback(async () => {
     if (!supabase) {
       setSession(null);
       return;
     }
-    const { data } = await supabase.auth.getSession();
-    setSession(data.session);
+    // Guarded against a hung network refresh — see bootSession. A
+    // previously-signed-in user re-opening offline still gets in; they
+    // just carry a "cached" session until the SDK confirms it for real.
+    const result = await bootSession();
+    setSession(result ? { email: result.email } : null);
   }, []);
 
   useEffect(() => {
     applyTheme();
     refreshSession();
     if (!supabase) return;
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+      // Only a real SDK event can ever move this to a definite "signed
+      // out" — never let a background network hiccup bounce an
+      // already-booted offline session back to the login screen.
+      if (s) setSession({ email: s.user.email ?? "" });
+      else if (navigator.onLine) setSession(null);
+    });
     return () => sub.subscription.unsubscribe();
   }, [refreshSession]);
 
@@ -63,10 +73,5 @@ export default function Home() {
     );
   }
 
-  return (
-    <ShopShell
-      email={session.user.email ?? ""}
-      onSignOut={() => setSession(null)}
-    />
-  );
+  return <ShopShell email={session.email} onSignOut={() => setSession(null)} />;
 }

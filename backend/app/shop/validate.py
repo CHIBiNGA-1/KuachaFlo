@@ -20,7 +20,7 @@ _EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 INVENTORY_CATEGORIES = [
     "Beverages", "Pantry", "Fresh & dairy", "Snacks",
-    "Personal care", "Household", "Other",
+    "Personal care & household", "Gadgets", "Other",
 ]
 SUPPLIER_CATEGORIES = [*INVENTORY_CATEGORIES, "Multiple categories"]
 EXPENSE_CATEGORIES = [

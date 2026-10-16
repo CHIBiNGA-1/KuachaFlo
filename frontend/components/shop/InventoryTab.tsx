@@ -1,5 +1,6 @@
 "use client";
 
+import { useResync } from "@/lib/offline/hooks";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Bookmark,
@@ -100,6 +101,7 @@ export function InventoryTab({
   useEffect(() => {
     load();
   }, [load]);
+  useResync(load);
 
   useEffect(() => {
     setTab(initialFilter === "attention" ? "low" : initialFilter === "saved" ? "saved" : "all");

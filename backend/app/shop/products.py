@@ -3,7 +3,7 @@
 from sqlalchemy.orm import Session
 
 from app.models import OrderItem, Product, Supplier
-from app.shop import validate as v
+from app.shop import category_model, validate as v
 from app.shop.errors import Conflict, NotFound, ShopError
 
 ALLOWED = {
@@ -11,6 +11,21 @@ ALLOWED = {
     "unit", "supplier_id", "supplier", "image", "notes", "pinned",
     "expected_version", "expected_stock",
 }
+
+def suggest_category(db: Session, business_id: str, name: str) -> dict:
+    """Best-guess category for a not-yet-saved product name. The model
+    lives in category_model.py; this just feeds it the shop's own
+    already-categorized products, which is all the training data it
+    needs — every product saved (or corrected) teaches the next guess."""
+    rows = (
+        db.query(Product.name, Product.category)
+        .filter(Product.business_id == business_id)
+        .order_by(Product.created_at.desc())
+        .limit(3000)
+        .all()
+    )
+    # Oldest first, so recency weighting inside the model reads naturally.
+    return category_model.predict(name, list(reversed(rows)))
 
 
 def serialize(p: Product) -> dict:

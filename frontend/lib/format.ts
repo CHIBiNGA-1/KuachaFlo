@@ -36,16 +36,35 @@ export const PLAN_NAMES: Record<string, string> = {
 };
 
 export async function fetchMyPlan(): Promise<string> {
-  if (!supabase) throw new Error("Not configured — set the Supabase env vars.");
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("You're signed out — sign in again.");
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("plan")
-    .eq("id", user.id)
-    .single();
-  if (error) throw error;
-  return (data as { plan: string }).plan || "free";
+  // The plan name is a nice-to-have label; offline it falls back to the
+  // last value seen on this device instead of erroring the whole screen.
+  const remember = (plan: string) => {
+    try {
+      localStorage.setItem("kratte:plan", plan);
+    } catch {
+      /* private mode — fine */
+    }
+    return plan;
+  };
+  const lastKnown = () => {
+    try {
+      return localStorage.getItem("kratte:plan");
+    } catch {
+      return null;
+    }
+  };
+  try {
+    if (!supabase) throw new Error("Not configured — set the Supabase env vars.");
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("You're signed out — sign in again.");
+    const { data, error } = await supabase.from("profiles").select("plan").eq("id", user.id).single();
+    if (error) throw error;
+    return remember((data as { plan: string }).plan || "free");
+  } catch (e) {
+    const cached = lastKnown();
+    if (cached) return cached;
+    throw e;
+  }
 }
